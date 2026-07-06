@@ -152,13 +152,13 @@ export class ModSyncService {
           const localHash = await this.calculateHash(localMod.path, 'sha256')
           status = localHash.toLowerCase() === serverMod.hash.toLowerCase() ? 'OK' : 'UPDATE'
           if (status === 'OK') this.setKnownHash(serverId, serverMod.fileName, serverMod.hash)
-        } else if (known) {
-          // GIANTS feed hashes are content fingerprints, not reproducible file hashes.
-          // Only trust them after this launcher has verified/downloaded the file once.
-          status = known.toLowerCase() === serverMod.hash.toLowerCase() ? 'OK' : 'UPDATE'
         } else if (serverMod.version && localMod.version) {
           status = normalizeVersion(serverMod.version) === normalizeVersion(localMod.version) ? 'OK' : 'UPDATE'
           if (status === 'OK') this.setKnownHash(serverId, serverMod.fileName, serverMod.hash)
+        } else if (known) {
+          // GIANTS feed hashes are content fingerprints, not reproducible file hashes.
+          // Use them only when version data is unavailable.
+          status = known.toLowerCase() === serverMod.hash.toLowerCase() ? 'OK' : 'UPDATE'
         } else {
           status = 'UPDATE'
         }
