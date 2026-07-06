@@ -12,7 +12,7 @@ export class FsStatsService {
   buildUrl(server: GameServer): string {
     const host = server.ip || sanitizeHost(server.ftpHost)
     const port = server.webStatsPort || 8080
-    const code = encodeURIComponent(server.webApiCode || '')
+    const code = encodeURIComponent((server.webApiCode || '').trim())
     return `http://${host}:${port}/feed/dedicated-server-stats.xml?code=${code}`
   }
 
@@ -90,15 +90,17 @@ export class FsStatsService {
         if (!name) continue
         const version = attr(tag, 'version') || '1.0.0'
         const hash = attr(tag, 'hash') || ''
+        const fileName = name.toLowerCase().endsWith('.zip') ? name : `${name}.zip`
+        const code = encodeURIComponent((server.webApiCode || '').trim())
         mods.push({
-          fileName: `${name}.zip`,
+          fileName,
           version,
           // GIANTS feed hash isn't a reproducible file MD5, but it IS a stable
           // content fingerprint: it changes whenever the mod content changes
           // (even with the same version). We track it over time to detect updates.
           hash,
           size: 0, // not provided by feed; resolved from Content-Length at download
-          path: `http://${host}:${port}/mods/${encodeURIComponent(name)}.zip`,
+          path: `http://${host}:${port}/mods/${encodeURIComponent(fileName)}?code=${code}`,
           lastModified: new Date().toISOString()
         })
       }

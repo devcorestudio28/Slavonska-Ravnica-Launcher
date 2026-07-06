@@ -60,7 +60,15 @@ export class ModSyncService {
     // Prefer the FS25 dedicated server web feed when configured: it is the
     // authoritative active mod list with MD5 hashes + direct HTTP downloads.
     if (server.webStatsPort && server.webApiCode) {
-      return fsStatsService.fetchServerMods(server)
+      try {
+        return await fsStatsService.fetchServerMods(server)
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'nepoznata greÅ¡ka'
+        logService.warning('SYNC', `Web feed nije dostupan, pokusavam fallback izvor modova: ${msg}`)
+        if (!this.canUseConfiguredModSource(server)) {
+          throw new Error(`${msg}. Provjeri Web API kod/port na serveru ili konfiguriraj FTP/SFTP/REST fallback.`)
+        }
+      }
     }
     switch (server.connectionType) {
       case 'ftp':
@@ -71,6 +79,19 @@ export class ModSyncService {
         return restApiService.listMods(server)
       default:
         throw new Error(`Nepoznat tip veze: ${server.connectionType}`)
+    }
+  }
+
+  private canUseConfiguredModSource(server: GameServer): boolean {
+    switch (server.connectionType) {
+      case 'ftp':
+        return !!(server.ftpHost && server.ftpUsername && server.ftpPassword)
+      case 'sftp':
+        return !!(server.sftpHost && server.sftpUsername && server.sftpPassword)
+      case 'rest':
+        return !!server.apiUrl
+      default:
+        return false
     }
   }
 

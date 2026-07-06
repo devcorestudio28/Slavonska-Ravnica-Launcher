@@ -7,6 +7,7 @@ import { ftpService } from './ftp.service'
 import { sftpService } from './sftp.service'
 import { modSyncService } from './mod-sync.service'
 import { logService } from './log.service'
+import { sanitizeHost } from './net-util'
 import type {
   GameServer,
   Mod,
@@ -117,8 +118,14 @@ export class DownloadService {
       const serverPath = mod?.serverPath || ''
 
       if (serverPath.startsWith('http://') || serverPath.startsWith('https://')) {
-        // FS25 web feed (or REST) direct HTTP download. GIANTS server needs no code.
-        await this.downloadViaHttp(serverPath, tempPath, server.apiKey, updateProgress, controller.signal)
+        // FS25 web feed (or REST) direct HTTP download. Try stored and authenticated variants.
+        await this.downloadViaHttpWithFallbacks(
+          this.getHttpDownloadUrls(serverPath, item.fileName, server),
+          tempPath,
+          server.apiKey,
+          updateProgress,
+          controller.signal
+        )
       } else if (server.connectionType === 'rest' && server.apiUrl) {
         await this.downloadViaHttp(
           `${server.apiUrl}/api/mods/download/${encodeURIComponent(item.fileName)}`,
@@ -216,7 +223,8 @@ export class DownloadService {
       headers: apiKey ? { 'X-API-Key': apiKey, Authorization: `Bearer ${apiKey}` } : {}
     })
 
-    const total = parseInt(res.headers['content-length'] || '0', 10)
+    const totalHeader = res.headers['content-length']
+    const total = parseInt(Array.isArray(totalHeader) ? totalHeader[0] : String(totalHeader || '0'), 10)
     let downloaded = 0
 
     return new Promise((resolve, reject) => {
@@ -232,6 +240,44 @@ export class DownloadService {
       writer.on('error', reject)
       res.data.on('error', reject)
     })
+  }
+
+  private async downloadViaHttpWithFallbacks(
+    urls: string[],
+    localPath: string,
+    apiKey: string | undefined,
+    onProgress: (downloaded: number, total: number) => void,
+    signal: AbortSignal
+  ): Promise<void> {
+    let lastError: unknown
+    for (const url of urls) {
+      try {
+        if (fs.existsSync(localPath)) fs.unlinkSync(localPath)
+        await this.downloadViaHttp(url, localPath, apiKey, onProgress, signal)
+        return
+      } catch (err) {
+        lastError = err
+      }
+    }
+    throw lastError instanceof Error ? lastError : new Error('HTTP download nije uspio')
+  }
+
+  private getHttpDownloadUrls(serverPath: string, fileName: string, server: GameServer): string[] {
+    const urls = new Set<string>([serverPath])
+    const code = (server.webApiCode || '').trim()
+
+    if (code && !serverPath.includes('code=')) {
+      const sep = serverPath.includes('?') ? '&' : '?'
+      urls.add(`${serverPath}${sep}code=${encodeURIComponent(code)}`)
+    }
+
+    if (server.webStatsPort && code) {
+      const host = server.ip || sanitizeHost(server.ftpHost)
+      const port = server.webStatsPort || 8080
+      urls.add(`http://${host}:${port}/mods/${encodeURIComponent(fileName)}?code=${encodeURIComponent(code)}`)
+    }
+
+    return [...urls]
   }
 
   pauseDownload(id: string): void {
