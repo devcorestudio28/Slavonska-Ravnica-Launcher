@@ -135,9 +135,6 @@ export class ModSyncService {
     const localMap = new Map<string, LocalMod>()
     localMods.forEach((m) => localMap.set(m.fileName.toLowerCase(), m))
 
-    // Load the last-known server content hash per mod for this server
-    const knownHashes = this.getKnownHashes(serverId)
-
     const mods: Mod[] = []
 
     for (const serverMod of serverMods) {
@@ -147,20 +144,19 @@ export class ModSyncService {
       if (!localMod) {
         status = 'FALI'
       } else if (serverMod.hash) {
-        const known = knownHashes.get(serverMod.fileName.toLowerCase())
         if (serverMod.hash.length === 64) {
           const localHash = await this.calculateHash(localMod.path, 'sha256')
           status = localHash.toLowerCase() === serverMod.hash.toLowerCase() ? 'OK' : 'UPDATE'
           if (status === 'OK') this.setKnownHash(serverId, serverMod.fileName, serverMod.hash)
         } else if (serverMod.version && localMod.version) {
+          // GIANTS/FS25 web feed hashes are content fingerprints, not a hash we
+          // can reproduce from the zip. For those, matching filename + modDesc
+          // version is the reliable local check.
           status = normalizeVersion(serverMod.version) === normalizeVersion(localMod.version) ? 'OK' : 'UPDATE'
           if (status === 'OK') this.setKnownHash(serverId, serverMod.fileName, serverMod.hash)
-        } else if (known) {
-          // GIANTS feed hashes are content fingerprints, not reproducible file hashes.
-          // Use them only when version data is unavailable.
-          status = known.toLowerCase() === serverMod.hash.toLowerCase() ? 'OK' : 'UPDATE'
         } else {
-          status = 'UPDATE'
+          status = 'OK'
+          this.setKnownHash(serverId, serverMod.fileName, serverMod.hash)
         }
       } else if (serverMod.version && localMod.version) {
         // Fallback for servers without a content hash: compare modDesc versions
