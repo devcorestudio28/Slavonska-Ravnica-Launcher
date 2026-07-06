@@ -26,6 +26,7 @@ const {
 const DISCORD_API = 'https://discord.com/api/v10'
 const SCOPE = 'identify guilds.members.read'
 const SESSION_TTL = '2d'
+const DEFAULT_PUBLIC_URL = 'https://sr-launcher-backend.onrender.com'
 
 // Persistent role config. Set CONFIG_DIR to a Railway volume mount (e.g. /data)
 // so changes survive redeploys; otherwise falls back to env defaults each deploy.
@@ -58,8 +59,16 @@ function saveRoleConfig(cfg) {
 
 let roleConfig = loadRoleConfig()
 
-const missing = ['DISCORD_CLIENT_ID', 'DISCORD_CLIENT_SECRET', 'DISCORD_GUILD_ID', 'JWT_SECRET', 'PUBLIC_URL']
+function normalizePublicUrl(value) {
+  const raw = String(value || DEFAULT_PUBLIC_URL).trim().replace(/\/+$/, '')
+  return /^https?:\/\/[^/]+/i.test(raw) ? raw : ''
+}
+
+const publicUrl = normalizePublicUrl(PUBLIC_URL)
+
+const missing = ['DISCORD_CLIENT_ID', 'DISCORD_CLIENT_SECRET', 'DISCORD_GUILD_ID', 'JWT_SECRET']
   .filter((k) => !process.env[k])
+if (!publicUrl) missing.push('PUBLIC_URL')
 if (missing.length) console.warn('⚠ Nedostaju env varijable:', missing.join(', '))
 
 // In-memory pending logins keyed by state
@@ -70,7 +79,7 @@ setInterval(() => {
   for (const [k, v] of pending) if (now - v.createdAt > PENDING_TTL) pending.delete(k)
 }, 60 * 1000).unref()
 
-const redirectUri = () => `${PUBLIC_URL}/auth/callback`
+const redirectUri = () => `${publicUrl}/auth/callback`
 
 app.get('/health', (_req, res) => res.json({ ok: true, service: 'sr-launcher-backend' }))
 
