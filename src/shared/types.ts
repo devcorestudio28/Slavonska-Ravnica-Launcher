@@ -78,7 +78,10 @@ export interface Mod {
 export interface ServerMod {
   fileName: string
   version: string
+  build?: string
   hash: string
+  sha256?: string
+  crc32?: string
   size: number
   path: string
   lastModified: string
@@ -87,6 +90,7 @@ export interface ServerMod {
 export interface LocalMod {
   fileName: string
   version?: string
+  build?: string
   hash: string
   size: number
   path: string

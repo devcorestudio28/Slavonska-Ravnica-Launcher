@@ -110,12 +110,12 @@ export class ModSyncService {
 
       if (stat.isDirectory()) continue
 
-      // Read the real mod version from modDesc.xml (same value the server feed
-      // reports), falling back to the filename if the zip can't be read.
-      const descVersion = await readModDescVersion(filePath)
+      // Read modDesc.xml metadata, falling back to the filename if the zip can't be read.
+      const desc = await readModDescMetadata(filePath)
       mods.push({
         fileName: file,
-        version: descVersion || this.extractVersionFromName(file),
+        version: desc.version || this.extractVersionFromName(file),
+        build: desc.build,
         hash: '',
         size: stat.size,
         path: filePath,
@@ -143,26 +143,8 @@ export class ModSyncService {
 
       if (!localMod) {
         status = 'FALI'
-      } else if (serverMod.hash) {
-        if (serverMod.hash.length === 64) {
-          const localHash = await this.calculateHash(localMod.path, 'sha256')
-          status = localHash.toLowerCase() === serverMod.hash.toLowerCase() ? 'OK' : 'UPDATE'
-          if (status === 'OK') this.setKnownHash(serverId, serverMod.fileName, serverMod.hash)
-        } else if (serverMod.version && localMod.version) {
-          // GIANTS/FS25 web feed hashes are content fingerprints, not a hash we
-          // can reproduce from the zip. For those, matching filename + modDesc
-          // version is the reliable local check.
-          status = normalizeVersion(serverMod.version) === normalizeVersion(localMod.version) ? 'OK' : 'UPDATE'
-          if (status === 'OK') this.setKnownHash(serverId, serverMod.fileName, serverMod.hash)
-        } else {
-          status = 'OK'
-          this.setKnownHash(serverId, serverMod.fileName, serverMod.hash)
-        }
-      } else if (serverMod.version && localMod.version) {
-        // Fallback for servers without a content hash: compare modDesc versions
-        status = normalizeVersion(serverMod.version) === normalizeVersion(localMod.version) ? 'OK' : 'UPDATE'
       } else {
-        status = 'OK'
+        status = await this.getUpdateStatus(serverId, serverMod, localMod)
       }
 
       mods.push({
@@ -253,6 +235,43 @@ export class ModSyncService {
     `).run(serverId)
   }
 
+  private async getUpdateStatus(serverId: string, serverMod: ServerMod, localMod: LocalMod): Promise<ModStatus> {
+    const sha256 = firstNonEmpty(serverMod.sha256, isSha256(serverMod.hash) ? serverMod.hash : undefined)
+    if (sha256) {
+      const localHash = await this.calculateHash(localMod.path, 'sha256')
+      const status: ModStatus = sameText(localHash, sha256) ? 'OK' : 'UPDATE'
+      if (status === 'OK') this.setKnownHash(serverId, serverMod.fileName, sha256)
+      return status
+    }
+
+    const crc32 = firstNonEmpty(serverMod.crc32, isCrc32(serverMod.hash) ? serverMod.hash : undefined)
+    if (crc32) {
+      const localCrc32 = await this.calculateCrc32(localMod.path)
+      const status: ModStatus = sameText(localCrc32, crc32) ? 'OK' : 'UPDATE'
+      if (status === 'OK') this.setKnownHash(serverId, serverMod.fileName, crc32)
+      return status
+    }
+
+    if (serverMod.build && localMod.build && !sameText(serverMod.build, localMod.build)) {
+      return 'UPDATE'
+    }
+
+    if (serverMod.version && localMod.version && normalizeVersion(serverMod.version) !== normalizeVersion(localMod.version)) {
+      return 'UPDATE'
+    }
+
+    if (serverMod.size > 0 && localMod.size > 0 && serverMod.size !== localMod.size) {
+      return 'UPDATE'
+    }
+
+    if (isUsableServerLastModified(serverMod) && !sameModifiedTime(serverMod.lastModified, localMod.lastModified)) {
+      return 'UPDATE'
+    }
+
+    if (serverMod.hash) this.setKnownHash(serverId, serverMod.fileName, serverMod.hash)
+    return 'OK'
+  }
+
   /** Loads the last-known content hash for every tracked mod on a server. */
   private getKnownHashes(serverId: string): Map<string, string> {
     const db = getDb()
@@ -285,6 +304,21 @@ export class ModSyncService {
       const stream = fs.createReadStream(filePath)
       stream.on('data', (data) => hash.update(data))
       stream.on('end', () => resolve(hash.digest('hex')))
+      stream.on('error', reject)
+    })
+  }
+
+  async calculateCrc32(filePath: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+      let crc = 0xffffffff
+      const stream = fs.createReadStream(filePath)
+      stream.on('data', (data: string | Buffer) => {
+        const chunk = Buffer.isBuffer(data) ? data : Buffer.from(data)
+        for (const byte of chunk) {
+          crc = (crc >>> 8) ^ CRC32_TABLE[(crc ^ byte) & 0xff]
+        }
+      })
+      stream.on('end', () => resolve(((crc ^ 0xffffffff) >>> 0).toString(16).padStart(8, '0')))
       stream.on('error', reject)
     })
   }
@@ -331,43 +365,49 @@ export class ModSyncService {
 }
 
 /**
- * Reads the <version> from modDesc.xml inside an FS mod zip. This is the same
- * version the dedicated server reports in its feed, so it is the reliable way
- * to detect whether a local mod matches the server's required version.
+ * Reads metadata from modDesc.xml inside an FS mod zip. The <version> is the
+ * same value the dedicated server reports in its feed. The build value prefers
+ * an explicit <build>, then falls back to descVersion from the root tag.
  * Streams only the single entry (memory-efficient for large mods).
  */
-export function readModDescVersion(zipPath: string): Promise<string | undefined> {
+export function readModDescMetadata(zipPath: string): Promise<{ version?: string; build?: string }> {
   return new Promise((resolve) => {
     yauzl.open(zipPath, { lazyEntries: true }, (err, zipfile) => {
-      if (err || !zipfile) return resolve(undefined)
+      if (err || !zipfile) return resolve({})
       let settled = false
-      const finish = (v?: string): void => {
+      const finish = (metadata: { version?: string; build?: string } = {}): void => {
         if (settled) return
         settled = true
         try { zipfile.close() } catch { /* ignore */ }
-        resolve(v)
+        resolve(metadata)
       }
       zipfile.on('entry', (entry) => {
         if (entry.fileName.toLowerCase() === 'moddesc.xml') {
           zipfile.openReadStream(entry, (e, stream) => {
-            if (e || !stream) return finish(undefined)
+            if (e || !stream) return finish()
             let data = ''
-            stream.on('data', (c: Buffer) => (data += c.toString('utf8')))
+            stream.on('data', (c: string | Buffer) => (data += c.toString('utf8')))
             stream.on('end', () => {
-              const m = data.match(/<version>\s*([^<]+?)\s*<\/version>/i)
-              finish(m ? m[1].trim() : undefined)
+              const version = data.match(/<version>\s*([^<]+?)\s*<\/version>/i)?.[1]?.trim()
+              const build = data.match(/<build>\s*([^<]+?)\s*<\/build>/i)?.[1]?.trim()
+                || data.match(/<modDesc\b[^>]*\bdescVersion="([^"]+)"/i)?.[1]?.trim()
+              finish({ version, build })
             })
-            stream.on('error', () => finish(undefined))
+            stream.on('error', () => finish())
           })
         } else {
           zipfile.readEntry()
         }
       })
-      zipfile.on('end', () => finish(undefined))
-      zipfile.on('error', () => finish(undefined))
+      zipfile.on('end', () => finish())
+      zipfile.on('error', () => finish())
       zipfile.readEntry()
     })
   })
+}
+
+export async function readModDescVersion(zipPath: string): Promise<string | undefined> {
+  return (await readModDescMetadata(zipPath)).version
 }
 
 /** Normalizes an FS version string to 4 numeric parts for robust comparison. */
@@ -377,5 +417,41 @@ export function normalizeVersion(v?: string): string {
   while (parts.length < 4) parts.push(0)
   return parts.slice(0, 4).join('.')
 }
+
+function firstNonEmpty(...values: Array<string | undefined>): string | undefined {
+  return values.find((v) => !!v && v.trim().length > 0)?.trim()
+}
+
+function sameText(a?: string, b?: string): boolean {
+  return (a || '').trim().toLowerCase() === (b || '').trim().toLowerCase()
+}
+
+function isSha256(value?: string): boolean {
+  return /^[a-f0-9]{64}$/i.test(value || '')
+}
+
+function isCrc32(value?: string): boolean {
+  return /^[a-f0-9]{8}$/i.test(value || '')
+}
+
+function isUsableServerLastModified(mod: ServerMod): boolean {
+  if (!mod.lastModified || mod.size <= 0) return false
+  return Number.isFinite(Date.parse(mod.lastModified))
+}
+
+function sameModifiedTime(serverValue?: string, localValue?: string): boolean {
+  const serverTime = Date.parse(serverValue || '')
+  const localTime = Date.parse(localValue || '')
+  if (!Number.isFinite(serverTime) || !Number.isFinite(localTime)) return true
+  return Math.abs(serverTime - localTime) <= 2000
+}
+
+const CRC32_TABLE = Array.from({ length: 256 }, (_, index) => {
+  let c = index
+  for (let k = 0; k < 8; k++) {
+    c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1
+  }
+  return c >>> 0
+})
 
 export const modSyncService = new ModSyncService()

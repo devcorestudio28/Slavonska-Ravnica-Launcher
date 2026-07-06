@@ -5,7 +5,10 @@ import { logService } from './log.service'
 interface ApiModEntry {
   fileName: string
   version: string
+  build?: string
   hash: string
+  sha256?: string
+  crc32?: string
   size: number
   path: string
   lastModified: string
@@ -41,7 +44,10 @@ export class RestApiService {
       const mods: ServerMod[] = res.data.map((mod) => ({
         fileName: mod.fileName,
         version: mod.version || '1.0.0',
+        build: mod.build || '',
         hash: mod.hash || '',
+        sha256: mod.sha256 || '',
+        crc32: mod.crc32 || '',
         size: mod.size || 0,
         path: mod.path || `/mods/${mod.fileName}`,
         lastModified: mod.lastModified || new Date().toISOString()
