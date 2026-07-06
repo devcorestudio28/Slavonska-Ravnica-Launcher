@@ -28,7 +28,7 @@ const SCOPE = 'identify guilds.members.read'
 const SESSION_TTL = '2d'
 const DEFAULT_PUBLIC_URL = 'https://sr-launcher-backend.onrender.com'
 
-// Persistent role config. Set CONFIG_DIR to a Railway volume mount (e.g. /data)
+// Persistent role config. Set CONFIG_DIR to a mounted persistent path if needed.
 // so changes survive redeploys; otherwise falls back to env defaults each deploy.
 const CONFIG_DIR = process.env.CONFIG_DIR || __dirname
 const ROLES_FILE = path.join(CONFIG_DIR, 'roles.json')

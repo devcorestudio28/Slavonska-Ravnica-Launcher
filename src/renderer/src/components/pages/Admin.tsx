@@ -49,7 +49,7 @@ export default function Admin(): React.ReactElement {
         })
         setRoles(sorted)
       } else {
-        setErrorMsg(rolesRes.error || 'Nije moguće dohvatiti role s Discorda. Provjerite DISCORD_BOT_TOKEN na Railway-u.')
+        setErrorMsg(rolesRes.error || 'Nije moguće dohvatiti role s Discorda. Provjerite DISCORD_BOT_TOKEN u backend env varijablama.')
       }
 
       if (configRes.success && configRes.data) {
@@ -170,7 +170,7 @@ export default function Admin(): React.ReactElement {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
               d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
-          <span>Nema rola. Dodaj <code className="font-mono bg-black/30 px-1 rounded">DISCORD_BOT_TOKEN</code> u Railway varijable i pokreni ponovo.</span>
+          <span>Nema rola. Dodaj <code className="font-mono bg-black/30 px-1 rounded">DISCORD_BOT_TOKEN</code> u backend env varijable i pokreni ponovo.</span>
         </div>
       )}
 

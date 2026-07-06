@@ -104,15 +104,15 @@ RJESENJE: `DiscordLogin.tsx` ima dugme "Konfiguriraj Discord" koje otvara `Disco
 Admin tu unese Client ID/Secret/Guild/Bot Token/Role ID PRIJE prijave. Sprema u SQLite preko saveSettings.
 `.env.example` je SAMO referenca - kod ga NE cita. Sve konfiguracije idu kroz UI u bazu.
 
-### Distribucija igracima: Railway backend (zero-config)
-`server/` folder = deployable Node/Express backend za Railway. Drzi SVE tajne (Client Secret). Klijent zna samo BACKEND_URL.
+### Distribucija igracima: Render backend (zero-config)
+`server/` folder = deployable Node/Express backend za Render. Drzi SVE tajne (Client Secret). Klijent zna samo BACKEND_URL.
 Backend (server/index.js): /auth/start (redirect na Discord), /auth/callback (token exchange + role check preko KORISNIKOVOG tokena, bez bot tokena), /auth/result (polling), /auth/me (re-verify), /config (servers.json, samo s rolom). JWT sesije.
 Klijent: `src/shared/app-config.ts` BACKEND_URL konstanta. Prazna = LOKALNI flow. Postavljena = backend flow.
-DEPLOYAN: BACKEND_URL = https://sr-launcher-backend-production.up.railway.app (Railway, radi - /health, /auth/start, /config provjereno izvana). Igracka verzija .exe je u backend mode-u.
-Railway napomene: treba Variable PORT=8080 (domena gada 8080) + PUBLIC_URL MORA imati https:// prefix.
+DEPLOYAN: BACKEND_URL = https://sr-launcher-backend.onrender.com (Render, /health, /auth/start i /config idu preko tog backenda). Igracka verzija .exe je u backend mode-u.
+Render napomene: treba Variable PORT=8080 (domena gada 8080) + PUBLIC_URL MORA imati https:// prefix.
 `backend-auth.service.ts` (login polling, verify, fetchConfig). auth.ipc.ts grana na isBackendMode(). server.service.upsertServersFromConfig() upserta servere po backend id-u.
 Igraci NE trebaju: bot token, FTP (modovi preko javnog http linka), nikakvu konfiguraciju. Samo instaliraju .exe + Discord login.
-Admin koraci: deploy server/ na Railway (root=server), env vars (CLIENT_ID/SECRET/GUILD_ID/ROLE_ID/JWT_SECRET/PUBLIC_URL), Discord redirect = PUBLIC_URL/auth/callback, stavi URL u app-config.ts, rebuild .exe.
+Admin koraci: deploy server/ na Render (root=server), env vars (CLIENT_ID/SECRET/GUILD_ID/ROLE_ID/JWT_SECRET/PUBLIC_URL), Discord redirect = PUBLIC_URL/auth/callback, stavi URL u app-config.ts, rebuild .exe.
 servers.json na backendu = central config (promijeni server bez novog .exe). webApiCode je read-only (ok), FTP lozinka NE ide tu.
 servers.json ima OBA servera: sr-main (Slavonska ravnica, 176.57.169.250, web 8620, oXuXiWxTnqiShUny) i sr-test (Slavonska ravnica - test, 51.89.3.249, web 8080, e3dmikatjhjum55z2bxrg2hncvkl).
 upsertServersFromConfig BRISE servere kojih nema u configu (lista = backend tocno). Samo radi kad config nije prazan (failed fetch = [] = nista ne dira).
@@ -124,7 +124,7 @@ IPC: upload.ipc.ts (select-files dialog multi-select zip, enqueue, get-queue, ca
 VAZNO: backend /config NE salje FTP podatke (igraci ih nemaju), pa upsertServersFromConfig NE dira ftp_* polja - admin rucno doda FTP u Serveri>uredi i ostaju (upload dugme se pojavi).
 
 ### GitHub repoi
-- Backend (Railway izvor): github.com/ktomasic66-coder/sr-launcher-backend (servers.json se mijenja ovdje -> Railway auto-redeploy).
+- Backend (Render izvor): github.com/ktomasic66-coder/sr-launcher-backend (servers.json se mijenja ovdje -> Render auto-redeploy).
 - Igracki installer (javni): github.com/ktomasic66-coder/SlavonskaRavnica-launcher (.exe + README). Lokalni klon: C:\Users\ktoma.KIKI\Desktop\SR-Launcher-Release (git push za novu verziju).
 - Git credential helper warning "credential-manager-core not a git command" je kozmeticki - push svejedno radi (cached creds).
 

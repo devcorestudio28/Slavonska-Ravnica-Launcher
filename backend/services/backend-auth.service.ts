@@ -95,7 +95,7 @@ export class BackendAuthService {
       validateStatus: () => true
     })
     if (res.status !== 200) {
-      throw new Error(res.data?.error === 'no_bot_token' ? 'Backend nema Bot Token (dodaj DISCORD_BOT_TOKEN na Railway)' : 'Ne mogu dohvatiti role')
+      throw new Error(res.data?.error === 'no_bot_token' ? 'Backend nema Bot Token (dodaj DISCORD_BOT_TOKEN u backend env varijable)' : 'Ne mogu dohvatiti role')
     }
     return (res.data?.roles ?? []) as GuildRole[]
   }

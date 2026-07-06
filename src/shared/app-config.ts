@@ -1,7 +1,7 @@
 // ============================================================
 // Distribution config
 // ------------------------------------------------------------
-// Set BACKEND_URL to your deployed Railway backend (no trailing slash) to enable
+// Set BACKEND_URL to your deployed auth/config backend (no trailing slash) to enable
 // zero-config distribution: players just install and log in, no secrets in the app.
 //
 //   export const BACKEND_URL = 'https://sr-launcher-backend.onrender.com'
