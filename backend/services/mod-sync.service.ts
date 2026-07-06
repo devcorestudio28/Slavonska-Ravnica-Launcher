@@ -156,6 +156,9 @@ export class ModSyncService {
           // GIANTS feed hashes are content fingerprints, not reproducible file hashes.
           // Only trust them after this launcher has verified/downloaded the file once.
           status = known.toLowerCase() === serverMod.hash.toLowerCase() ? 'OK' : 'UPDATE'
+        } else if (serverMod.version && localMod.version) {
+          status = normalizeVersion(serverMod.version) === normalizeVersion(localMod.version) ? 'OK' : 'UPDATE'
+          if (status === 'OK') this.setKnownHash(serverId, serverMod.fileName, serverMod.hash)
         } else {
           status = 'UPDATE'
         }
