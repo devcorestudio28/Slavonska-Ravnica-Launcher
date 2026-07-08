@@ -7,7 +7,7 @@ const express = require('express')
 const jwt = require('jsonwebtoken')
 const fs = require('fs')
 const path = require('path')
-const { Pool } = require('pg')
+const mysql = require('mysql2/promise')
 
 const app = express()
 app.use(express.json())
@@ -27,18 +27,22 @@ const {
 const DISCORD_API = 'https://discord.com/api/v10'
 const SCOPE = 'identify guilds.members.read'
 const SESSION_TTL = '2d'
-const DEFAULT_PUBLIC_URL = 'https://sr-launcher-backend.onrender.com'
+const DEFAULT_PUBLIC_URL = ''
 
 // Persistent role config. Set CONFIG_DIR to a mounted persistent path if needed.
 // so changes survive redeploys; otherwise falls back to env defaults each deploy.
 const CONFIG_DIR = process.env.CONFIG_DIR || __dirname
 const ROLES_FILE = path.join(CONFIG_DIR, 'roles.json')
 const SERVERS_FILE = path.join(__dirname, 'servers.json')
-const DATABASE_URL = process.env.DATABASE_URL
-const pgPool = DATABASE_URL
-  ? new Pool({
-      connectionString: DATABASE_URL,
-      ssl: process.env.PGSSLMODE === 'disable' ? false : { rejectUnauthorized: false }
+const MYSQL_DATABASE_URL = process.env.MYSQL_URL ||
+  process.env.MYSQL_PUBLIC_URL ||
+  (String(process.env.DATABASE_URL || '').startsWith('mysql') ? process.env.DATABASE_URL : '')
+const mysqlPool = MYSQL_DATABASE_URL
+  ? mysql.createPool({
+      uri: MYSQL_DATABASE_URL,
+      waitForConnections: true,
+      connectionLimit: 5,
+      queueLimit: 0
     })
   : null
 
@@ -161,43 +165,43 @@ function writeServersFile(servers) {
 }
 
 async function initServerDb() {
-  if (!pgPool || serverDbReady) return
-  await pgPool.query(`
+  if (!mysqlPool || serverDbReady) return
+  await mysqlPool.execute(`
     CREATE TABLE IF NOT EXISTS launcher_servers (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      ip TEXT DEFAULT '',
+      id VARCHAR(120) PRIMARY KEY,
+      name VARCHAR(255) NOT NULL,
+      ip VARCHAR(255) DEFAULT '',
       port INTEGER DEFAULT 7777,
       max_players INTEGER DEFAULT 16,
-      map TEXT DEFAULT '',
-      version TEXT DEFAULT '',
-      connection_type TEXT DEFAULT 'ftp',
-      ftp_host TEXT DEFAULT '',
+      map VARCHAR(255) DEFAULT '',
+      version VARCHAR(120) DEFAULT '',
+      connection_type VARCHAR(20) DEFAULT 'ftp',
+      ftp_host VARCHAR(255) DEFAULT '',
       ftp_port INTEGER DEFAULT 21,
-      ftp_username TEXT DEFAULT '',
-      ftp_password TEXT DEFAULT '',
-      ftp_path TEXT DEFAULT '/mods',
-      sftp_host TEXT DEFAULT '',
+      ftp_username VARCHAR(255) DEFAULT '',
+      ftp_password TEXT,
+      ftp_path VARCHAR(500) DEFAULT '/mods',
+      sftp_host VARCHAR(255) DEFAULT '',
       sftp_port INTEGER DEFAULT 22,
-      sftp_username TEXT DEFAULT '',
-      sftp_password TEXT DEFAULT '',
-      sftp_path TEXT DEFAULT '/mods',
-      api_url TEXT DEFAULT '',
-      api_key TEXT DEFAULT '',
+      sftp_username VARCHAR(255) DEFAULT '',
+      sftp_password TEXT,
+      sftp_path VARCHAR(500) DEFAULT '/mods',
+      api_url VARCHAR(500) DEFAULT '',
+      api_key TEXT,
       web_stats_port INTEGER DEFAULT 8080,
-      web_api_code TEXT DEFAULT '',
-      created_at TIMESTAMPTZ DEFAULT now(),
-      updated_at TIMESTAMPTZ DEFAULT now()
+      web_api_code TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     )
   `)
 
-  const count = await pgPool.query('SELECT COUNT(*)::int AS count FROM launcher_servers')
-  if (count.rows[0]?.count === 0 && fs.existsSync(SERVERS_FILE)) {
+  const [countRows] = await mysqlPool.execute('SELECT COUNT(*) AS count FROM launcher_servers')
+  if (Number(countRows[0]?.count || 0) === 0 && fs.existsSync(SERVERS_FILE)) {
     for (const server of readServersFile()) {
       const clean = sanitizeServer(server, server.id)
       const values = SERVER_COLUMNS.map((column) => clean[column])
-      const placeholders = SERVER_COLUMNS.map((_, i) => `$${i + 1}`).join(', ')
-      await pgPool.query(
+      const placeholders = SERVER_COLUMNS.map(() => '?').join(', ')
+      await mysqlPool.execute(
         `INSERT INTO launcher_servers (${SERVER_COLUMNS.join(', ')}) VALUES (${placeholders})`,
         values
       )
@@ -207,15 +211,15 @@ async function initServerDb() {
 }
 
 async function getServerConfigs() {
-  if (!pgPool) return readServersFile()
+  if (!mysqlPool) return readServersFile()
   await initServerDb()
-  const result = await pgPool.query('SELECT * FROM launcher_servers ORDER BY name ASC')
-  return result.rows.map(toCamelServer)
+  const [rows] = await mysqlPool.execute('SELECT * FROM launcher_servers ORDER BY name ASC')
+  return rows.map(toCamelServer)
 }
 
 async function upsertServerConfig(id, data) {
   const server = sanitizeServer(data, id)
-  if (!pgPool) {
+  if (!mysqlPool) {
     const servers = readServersFile()
     const idx = servers.findIndex((s) => s.id === server.id)
     const camel = toCamelServer(server)
@@ -228,20 +232,20 @@ async function upsertServerConfig(id, data) {
   await initServerDb()
   const columns = SERVER_COLUMNS
   const values = columns.map((column) => server[column])
-  const placeholders = columns.map((_, i) => `$${i + 1}`).join(', ')
+  const placeholders = columns.map(() => '?').join(', ')
   const updates = columns
     .filter((column) => column !== 'id')
-    .map((column) => `${column} = EXCLUDED.${column}`)
-    .concat('updated_at = now()')
+    .map((column) => `${column} = VALUES(${column})`)
+    .concat('updated_at = CURRENT_TIMESTAMP')
     .join(', ')
-  const result = await pgPool.query(
+  await mysqlPool.execute(
     `INSERT INTO launcher_servers (${columns.join(', ')})
      VALUES (${placeholders})
-     ON CONFLICT (id) DO UPDATE SET ${updates}
-     RETURNING *`,
+     ON DUPLICATE KEY UPDATE ${updates}`,
     values
   )
-  return toCamelServer(result.rows[0])
+  const [rows] = await mysqlPool.execute('SELECT * FROM launcher_servers WHERE id = ? LIMIT 1', [server.id])
+  return toCamelServer(rows[0])
 }
 
 function normalizePublicUrl(value) {
@@ -435,7 +439,7 @@ app.put('/admin/servers/:id', requireSession, requireAdmin, async (req, res) => 
   }
 })
 
-app.listen(PORT, () => console.log(`SR Launcher backend sluša na portu ${PORT} (config: ${CONFIG_DIR})`))
+app.listen(PORT, () => console.log(`SR Launcher backend sluša na portu ${PORT} (config: ${CONFIG_DIR}, db: ${mysqlPool ? 'mysql' : 'json'})`))
 
 function htmlPage(ok, message) {
   const color = ok ? '#22c55e' : '#ef4444'
