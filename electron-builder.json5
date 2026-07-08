@@ -43,8 +43,9 @@
     createDesktopShortcut: "always",
     createStartMenuShortcut: true,
     perMachine: false,
-    oneClick: false,
-    allowToChangeInstallationDirectory: true
+    oneClick: true,
+    allowToChangeInstallationDirectory: false,
+    runAfterFinish: true
   },
   publish: {
     provider: "github",

@@ -13,7 +13,7 @@ export function initUpdater(win: BrowserWindow): void {
     return autoUpdater.downloadUpdate()
   })
   ipcMain.handle('updater:install', () => {
-    autoUpdater.quitAndInstall(false, true)
+    autoUpdater.quitAndInstall(true, true)
   })
 
   autoUpdater.on('checking-for-update', () => {
