@@ -79,6 +79,15 @@ export function registerServerHandlers(): void {
   ipcMain.handle('servers:delete', async (_event, id: string): Promise<IPCResponse> => {
     try {
       deleteServer(id)
+      if (isBackendMode()) {
+        const token = discordService.loadSession()?.user.accessToken
+        if (token) {
+          await backendAuthService.deleteServerConfig(token, id)
+          const servers = await backendAuthService.fetchConfig(token)
+          upsertServersFromConfig(servers)
+          logService.success('CONFIG', `Server obrisan s backenda: ${id}`)
+        }
+      }
       return { success: true }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Greška brisanja servera'

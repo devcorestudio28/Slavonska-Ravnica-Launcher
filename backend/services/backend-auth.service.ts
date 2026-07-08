@@ -159,6 +159,14 @@ export class BackendAuthService {
     return res.data.server as BackendConfigServer
   }
 
+  async deleteServerConfig(token: string, id: string): Promise<void> {
+    const base = BACKEND_URL.replace(/\/$/, '')
+    await axios.delete(`${base}/admin/servers/${encodeURIComponent(id)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      timeout: 10000
+    })
+  }
+
   private toSession(profile: BackendProfile, token: string): { user: DiscordUser; hasRole: boolean; canUpload: boolean } {
     // The backend JWT is stored where the Discord access token used to live.
     const user: DiscordUser = {

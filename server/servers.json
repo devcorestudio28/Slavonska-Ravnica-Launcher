@@ -8,15 +8,5 @@
     "connectionType": "ftp",
     "webStatsPort": 8080,
     "webApiCode": "oXuXiWxTnqiShUny"
-  },
-  {
-    "id": "sr-test",
-    "name": "Slavonska ravnica - test",
-    "ip": "51.89.3.249",
-    "port": 10000,
-    "maxPlayers": 4,
-    "connectionType": "ftp",
-    "webStatsPort": 8080,
-    "webApiCode": "e3dmikatjhjum55z2bxrg2hncvkl"
   }
 ]

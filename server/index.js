@@ -248,6 +248,20 @@ async function upsertServerConfig(id, data) {
   return toCamelServer(rows[0])
 }
 
+async function deleteServerConfig(id) {
+  const serverId = String(id || '').trim()
+  if (!serverId) throw new Error('missing_id')
+
+  if (!mysqlPool) {
+    const servers = readServersFile().filter((server) => server.id !== serverId)
+    writeServersFile(servers)
+    return
+  }
+
+  await initServerDb()
+  await mysqlPool.execute('DELETE FROM launcher_servers WHERE id = ?', [serverId])
+}
+
 function normalizePublicUrl(value) {
   const raw = String(value || DEFAULT_PUBLIC_URL).trim().replace(/\/+$/, '')
   return /^https?:\/\/[^/]+/i.test(raw) ? raw : ''
@@ -436,6 +450,16 @@ app.put('/admin/servers/:id', requireSession, requireAdmin, async (req, res) => 
   } catch (e) {
     console.error('save server failed:', e.message)
     res.status(500).json({ error: 'server_save_failed' })
+  }
+})
+
+app.delete('/admin/servers/:id', requireSession, requireAdmin, async (req, res) => {
+  try {
+    await deleteServerConfig(req.params.id)
+    res.json({ ok: true })
+  } catch (e) {
+    console.error('delete server failed:', e.message)
+    res.status(500).json({ error: 'server_delete_failed' })
   }
 })
 
