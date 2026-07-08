@@ -242,6 +242,9 @@ export interface IPCResponse<T = void> {
 }
 
 export interface IElectronAPI {
+  // App
+  getAppVersion: () => Promise<string>
+
   // Auth
   discordLogin: () => Promise<IPCResponse<DiscordUser>>
   checkSession: () => Promise<IPCResponse<{ user: DiscordUser; hasRole: boolean; canUpload?: boolean } | null>>
@@ -297,6 +300,10 @@ export interface IElectronAPI {
   // Game
   launchGame: (serverId: string) => Promise<IPCResponse>
   checkGameInstallation: () => Promise<IPCResponse<boolean>>
+
+  // Launcher update
+  downloadUpdate: () => Promise<unknown>
+  installUpdate: () => Promise<void>
 
   // Events
   on: (channel: string, callback: (...args: unknown[]) => void) => void

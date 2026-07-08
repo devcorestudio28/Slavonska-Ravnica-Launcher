@@ -2,6 +2,9 @@ import { contextBridge, ipcRenderer } from 'electron'
 import type { IElectronAPI } from '../shared/types'
 
 const api: IElectronAPI = {
+  // App
+  getAppVersion: () => ipcRenderer.invoke('app:get-version'),
+
   // Auth
   discordLogin: () => ipcRenderer.invoke('auth:discord-login'),
   checkSession: () => ipcRenderer.invoke('auth:check-session'),
@@ -58,6 +61,10 @@ const api: IElectronAPI = {
   launchGame: (serverId) => ipcRenderer.invoke('game:launch', serverId),
   checkGameInstallation: () => ipcRenderer.invoke('game:check-installation'),
 
+  // Launcher update
+  downloadUpdate: () => ipcRenderer.invoke('updater:download'),
+  installUpdate: () => ipcRenderer.invoke('updater:install'),
+
   // Events
   on: (channel, callback) => {
     const allowedChannels = [
@@ -66,7 +73,9 @@ const api: IElectronAPI = {
       'download:progress',
       'upload:queue-update',
       'upload:progress',
+      'update:checking',
       'update:available',
+      'update:not-available',
       'update:downloaded',
       'update:progress'
     ]

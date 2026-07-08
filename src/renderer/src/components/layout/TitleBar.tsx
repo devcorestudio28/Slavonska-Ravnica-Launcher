@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { useAuthStore } from '../../store/auth.store'
 import logoUrl from '../../assets/logo.png'
 
@@ -14,6 +14,13 @@ declare global {
 
 export default function TitleBar(): React.ReactElement {
   const { user } = useAuthStore()
+  const [version, setVersion] = useState('...')
+
+  useEffect(() => {
+    window.electron.getAppVersion()
+      .then(setVersion)
+      .catch(() => setVersion(''))
+  }, [])
 
   return (
     <div
@@ -23,7 +30,9 @@ export default function TitleBar(): React.ReactElement {
       {/* Left: Logo */}
       <div className="flex items-center gap-2 no-drag">
         <img src={logoUrl} alt="SR" className="w-5 h-5 object-contain" />
-        <span className="text-white/60 text-xs font-medium tracking-widest">SR LAUNCHER V2</span>
+        <span className="text-white/60 text-xs font-medium tracking-widest">
+          SR LAUNCHER {version ? `v${version}` : ''}
+        </span>
       </div>
 
       {/* Center: Title */}
