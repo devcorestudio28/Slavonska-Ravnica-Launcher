@@ -25,6 +25,11 @@ const api: IElectronAPI = {
   adminGetConfig: () => ipcRenderer.invoke('admin:get-config'),
   adminSaveConfig: (config) => ipcRenderer.invoke('admin:save-config', config),
 
+  // FS25 web panel
+  panelGetState: (serverId) => ipcRenderer.invoke('panel:get-state', serverId),
+  panelAction: (serverId, action) => ipcRenderer.invoke('panel:action', serverId, action),
+  panelSaveMods: (serverId, activeModIds) => ipcRenderer.invoke('panel:save-mods', serverId, activeModIds),
+
   // Mods
   getMods: (serverId) => ipcRenderer.invoke('mods:get-all', serverId),
   syncMods: (serverId) => ipcRenderer.invoke('mods:sync', serverId),

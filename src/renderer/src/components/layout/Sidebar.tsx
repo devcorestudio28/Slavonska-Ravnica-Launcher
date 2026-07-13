@@ -78,6 +78,17 @@ const navItems: NavItem[] = [
           d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
       </svg>
     )
+  },
+  {
+    id: 'panel',
+    label: 'Panel',
+    adminOnly: true,
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
+          d="M4 5a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2 2h-5l2 4H9l2-4H6a2 2 0 01-2-2V5zm4 7l2-2-2-2m4 4h4" />
+      </svg>
+    )
   }
 ]
 

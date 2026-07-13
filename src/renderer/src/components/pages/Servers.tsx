@@ -2,9 +2,11 @@ import React, { useEffect, useState } from 'react'
 import { useServerStore } from '../../store/server.store'
 import type { GameServer } from '../../../../../shared/types'
 import ServerModal from '../common/ServerModal'
+import { useAuthStore } from '../../store/auth.store'
 
 export default function Servers(): React.ReactElement {
   const { servers, activeServer, fetchServers, setActiveServer, deleteServer, pingServer } = useServerStore()
+  const { canUpload } = useAuthStore()
   const [showModal, setShowModal] = useState(false)
   const [editServer, setEditServer] = useState<GameServer | null>(null)
   const [pinging, setPinging] = useState<string | null>(null)
@@ -43,12 +45,12 @@ export default function Servers(): React.ReactElement {
           <h1 className="text-white font-bold text-2xl">Serveri</h1>
           <p className="text-gray-500 text-sm mt-1">{servers.length} serverа konfigurirano</p>
         </div>
-        <button onClick={handleAdd} className="btn-gold flex items-center gap-2">
+        {canUpload && <button onClick={handleAdd} className="btn-gold flex items-center gap-2">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
           Dodaj Server
-        </button>
+        </button>}
       </div>
 
       {/* Server list */}
@@ -64,7 +66,7 @@ export default function Servers(): React.ReactElement {
             <p className="text-white font-medium mb-1">Nema dodanih servera</p>
             <p className="text-gray-500 text-sm">Kliknite "Dodaj Server" za konfiguraciju</p>
           </div>
-          <button onClick={handleAdd} className="btn-gold">Dodaj prvi server</button>
+          {canUpload && <button onClick={handleAdd} className="btn-gold">Dodaj prvi server</button>}
         </div>
       ) : (
         <div className="flex flex-col gap-2">
@@ -78,6 +80,7 @@ export default function Servers(): React.ReactElement {
               onPing={() => handlePing(server)}
               onEdit={() => handleEdit(server)}
               onDelete={() => handleDelete(server.id)}
+              canManage={canUpload}
             />
           ))}
         </div>
@@ -105,9 +108,10 @@ interface ServerCardProps {
   onPing: () => void
   onEdit: () => void
   onDelete: () => void
+  canManage: boolean
 }
 
-function ServerCard({ server, isActive, isPinging, onSelect, onPing, onEdit, onDelete }: ServerCardProps): React.ReactElement {
+function ServerCard({ server, isActive, isPinging, onSelect, onPing, onEdit, onDelete, canManage }: ServerCardProps): React.ReactElement {
   return (
     <div
       className={`panel p-4 transition-all duration-200 cursor-pointer ${
@@ -188,7 +192,7 @@ function ServerCard({ server, isActive, isPinging, onSelect, onPing, onEdit, onD
               </svg>
             )}
           </button>
-          <button
+          {canManage && <button
             onClick={onEdit}
             title="Uredi"
             className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 hover:text-white hover:bg-dark-400 transition-colors"
@@ -197,8 +201,8 @@ function ServerCard({ server, isActive, isPinging, onSelect, onPing, onEdit, onD
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                 d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
             </svg>
-          </button>
-          <button
+          </button>}
+          {canManage && <button
             onClick={onDelete}
             title="Obriši"
             className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
@@ -207,7 +211,7 @@ function ServerCard({ server, isActive, isPinging, onSelect, onPing, onEdit, onD
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                 d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
             </svg>
-          </button>
+          </button>}
         </div>
       </div>
     </div>

@@ -36,6 +36,8 @@ export interface GameServer {
   // FS25 Web Stats (dedicated server web panel) - live players/map/version
   webStatsPort?: number
   webApiCode?: string
+  webAdminUsername?: string
+  webAdminPassword?: string
   lastSync?: string
   createdAt: string
   updatedAt: string
@@ -48,6 +50,20 @@ export interface ServerPingResult {
   maxPlayers?: number
   map?: string
   version?: string
+}
+
+export type FsPanelStatus = 'running' | 'stopped' | 'unknown'
+
+export interface FsPanelMod {
+  id: string
+  name: string
+  active: boolean
+}
+
+export interface FsPanelState {
+  configured: boolean
+  status: FsPanelStatus
+  mods: FsPanelMod[]
 }
 
 // ============================================================
@@ -255,6 +271,11 @@ export interface IElectronAPI {
   adminGetRoles: () => Promise<IPCResponse<GuildRole[]>>
   adminGetConfig: () => Promise<IPCResponse<RoleConfig>>
   adminSaveConfig: (config: RoleConfig) => Promise<IPCResponse<RoleConfig>>
+
+  // FS25 dedicated server web panel (admin only)
+  panelGetState: (serverId: string) => Promise<IPCResponse<FsPanelState>>
+  panelAction: (serverId: string, action: 'start' | 'stop' | 'restart') => Promise<IPCResponse>
+  panelSaveMods: (serverId: string, activeModIds: string[]) => Promise<IPCResponse>
 
   // Servers
   getServers: () => Promise<IPCResponse<GameServer[]>>

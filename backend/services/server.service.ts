@@ -36,6 +36,8 @@ function rowToServer(row: Record<string, unknown>): GameServer {
     apiKey: row.api_key as string | undefined,
     webStatsPort: row.web_stats_port as number | undefined,
     webApiCode: row.web_api_code as string | undefined,
+    webAdminUsername: row.web_admin_username as string | undefined,
+    webAdminPassword: row.web_admin_password as string | undefined,
     lastSync: row.last_sync as string | undefined,
     createdAt: row.created_at as string,
     updatedAt: row.updated_at as string
@@ -64,13 +66,13 @@ export function addServer(data: Omit<GameServer, 'id' | 'createdAt' | 'updatedAt
       is_active, connection_type,
       ftp_host, ftp_port, ftp_username, ftp_password, ftp_path,
       sftp_host, sftp_port, sftp_username, sftp_password, sftp_path,
-      api_url, api_key, web_stats_port, web_api_code
+      api_url, api_key, web_stats_port, web_api_code, web_admin_username, web_admin_password
     ) VALUES (
       ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
       ?, ?,
       ?, ?, ?, ?, ?,
       ?, ?, ?, ?, ?,
-      ?, ?, ?, ?
+      ?, ?, ?, ?, ?, ?
     )
   `).run(
     id, data.name, data.ip || '', data.port || 7777,
@@ -82,7 +84,8 @@ export function addServer(data: Omit<GameServer, 'id' | 'createdAt' | 'updatedAt
     data.sftpHost || '', data.sftpPort || 22,
     data.sftpUsername || '', data.sftpPassword || '', data.sftpPath || '/mods',
     data.apiUrl || '', data.apiKey || '',
-    data.webStatsPort || 8080, data.webApiCode || ''
+    data.webStatsPort || 8080, data.webApiCode || '',
+    data.webAdminUsername || '', data.webAdminPassword || ''
   )
 
   const row = db.prepare('SELECT * FROM servers WHERE id = ?').get(id)
@@ -106,7 +109,8 @@ export function updateServer(id: string, data: Partial<GameServer>): GameServer 
     sftpHost: 'sftp_host', sftpPort: 'sftp_port',
     sftpUsername: 'sftp_username', sftpPassword: 'sftp_password', sftpPath: 'sftp_path',
     apiUrl: 'api_url', apiKey: 'api_key',
-    webStatsPort: 'web_stats_port', webApiCode: 'web_api_code'
+    webStatsPort: 'web_stats_port', webApiCode: 'web_api_code',
+    webAdminUsername: 'web_admin_username', webAdminPassword: 'web_admin_password'
   }
 
   for (const [key, dbCol] of Object.entries(fieldMap)) {
@@ -161,6 +165,8 @@ interface ConfigServer {
   apiKey?: string
   webStatsPort: number
   webApiCode: string
+  webAdminUsername?: string
+  webAdminPassword?: string
 }
 
 /**
@@ -177,16 +183,17 @@ export function upsertServersFromConfig(servers: ConfigServer[]): void {
       id, name, ip, port, max_players, map, version, connection_type,
       ftp_host, ftp_port, ftp_username, ftp_password, ftp_path,
       sftp_host, sftp_port, sftp_username, sftp_password, sftp_path,
-      api_url, api_key, web_stats_port, web_api_code, is_active
+      api_url, api_key, web_stats_port, web_api_code, web_admin_username, web_admin_password, is_active
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
   `)
   const updateStmt = db.prepare(`
     UPDATE servers SET
       name = ?, ip = ?, port = ?, max_players = ?, map = ?, version = ?, connection_type = ?,
       ftp_host = ?, ftp_port = ?, ftp_username = ?, ftp_password = ?, ftp_path = ?,
       sftp_host = ?, sftp_port = ?, sftp_username = ?, sftp_password = ?, sftp_path = ?,
-      api_url = ?, api_key = ?, web_stats_port = ?, web_api_code = ?, updated_at = datetime('now')
+      api_url = ?, api_key = ?, web_stats_port = ?, web_api_code = ?,
+      web_admin_username = ?, web_admin_password = ?, updated_at = datetime('now')
     WHERE id = ?
   `)
 
@@ -198,14 +205,16 @@ export function upsertServersFromConfig(servers: ConfigServer[]): void {
           s.name, s.ip, s.port, s.maxPlayers, s.map || '', s.version || '', s.connectionType,
           s.ftpHost || '', s.ftpPort || 21, s.ftpUsername || '', s.ftpPassword || '', s.ftpPath || '/mods',
           s.sftpHost || '', s.sftpPort || 22, s.sftpUsername || '', s.sftpPassword || '', s.sftpPath || '/mods',
-          s.apiUrl || '', s.apiKey || '', s.webStatsPort || 8080, s.webApiCode || '', s.id
+          s.apiUrl || '', s.apiKey || '', s.webStatsPort || 8080, s.webApiCode || '',
+          s.webAdminUsername || '', s.webAdminPassword || '', s.id
         )
       } else {
         insertStmt.run(
           s.id, s.name, s.ip, s.port, s.maxPlayers, s.map || '', s.version || '', s.connectionType,
           s.ftpHost || '', s.ftpPort || 21, s.ftpUsername || '', s.ftpPassword || '', s.ftpPath || '/mods',
           s.sftpHost || '', s.sftpPort || 22, s.sftpUsername || '', s.sftpPassword || '', s.sftpPath || '/mods',
-          s.apiUrl || '', s.apiKey || '', s.webStatsPort || 8080, s.webApiCode || ''
+          s.apiUrl || '', s.apiKey || '', s.webStatsPort || 8080, s.webApiCode || '',
+          s.webAdminUsername || '', s.webAdminPassword || ''
         )
       }
     }

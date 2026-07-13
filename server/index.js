@@ -69,7 +69,9 @@ const SERVER_COLUMNS = [
   'api_url',
   'api_key',
   'web_stats_port',
-  'web_api_code'
+  'web_api_code',
+  'web_admin_username',
+  'web_admin_password'
 ]
 
 const splitIds = (s) => (s || '').split(',').map((x) => x.trim()).filter(Boolean)
@@ -122,7 +124,9 @@ function toCamelServer(row) {
     apiUrl: row.api_url || row.apiUrl || '',
     apiKey: row.api_key || row.apiKey || '',
     webStatsPort: Number(row.web_stats_port || row.webStatsPort || 8080),
-    webApiCode: row.web_api_code || row.webApiCode || ''
+    webApiCode: row.web_api_code || row.webApiCode || '',
+    webAdminUsername: row.web_admin_username || row.webAdminUsername || '',
+    webAdminPassword: row.web_admin_password || row.webAdminPassword || ''
   }
 }
 
@@ -153,7 +157,9 @@ function sanitizeServer(input, fallbackId) {
     api_url: String(input.apiUrl || input.api_url || '').trim(),
     api_key: String(input.apiKey || input.api_key || ''),
     web_stats_port: Number(input.webStatsPort || input.web_stats_port || 8080),
-    web_api_code: String(input.webApiCode || input.web_api_code || '').trim()
+    web_api_code: String(input.webApiCode || input.web_api_code || '').trim(),
+    web_admin_username: String(input.webAdminUsername || input.web_admin_username || '').trim(),
+    web_admin_password: String(input.webAdminPassword || input.web_admin_password || '')
   }
 }
 
@@ -191,10 +197,23 @@ async function initServerDb() {
       api_key TEXT,
       web_stats_port INTEGER DEFAULT 8080,
       web_api_code TEXT,
+      web_admin_username VARCHAR(255) DEFAULT '',
+      web_admin_password TEXT,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     )
   `)
+
+  for (const statement of [
+    "ALTER TABLE launcher_servers ADD COLUMN web_admin_username VARCHAR(255) DEFAULT ''",
+    'ALTER TABLE launcher_servers ADD COLUMN web_admin_password TEXT'
+  ]) {
+    try {
+      await mysqlPool.execute(statement)
+    } catch (e) {
+      if (e.code !== 'ER_DUP_FIELDNAME') throw e
+    }
+  }
 
   const [countRows] = await mysqlPool.execute('SELECT COUNT(*) AS count FROM launcher_servers')
   if (Number(countRows[0]?.count || 0) === 0 && fs.existsSync(SERVERS_FILE)) {
@@ -395,7 +414,11 @@ app.get('/config', requireSession, async (req, res) => {
   if (!hasRole) return res.status(403).json({ error: 'no_role' })
   try {
     const servers = await getServerConfigs()
-    res.json({ servers })
+    // FS web-panel credentials are only delivered to launcher admins.
+    const visibleServers = req.user.canUpload
+      ? servers
+      : servers.map(({ webAdminUsername, webAdminPassword, ...server }) => server)
+    res.json({ servers: visibleServers })
   } catch (e) {
     console.error('config read failed:', e.message)
     res.status(500).json({ error: 'config_read_failed' })

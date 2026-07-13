@@ -32,7 +32,9 @@ const defaultData: Omit<GameServer, 'id' | 'status' | 'players' | 'ping' | 'crea
   apiUrl: '',
   apiKey: '',
   webStatsPort: 8080,
-  webApiCode: ''
+  webApiCode: '',
+  webAdminUsername: '',
+  webAdminPassword: ''
 }
 
 export default function ServerModal({ server, onClose, onSave }: ServerModalProps): React.ReactElement {
@@ -60,7 +62,9 @@ export default function ServerModal({ server, onClose, onSave }: ServerModalProp
       apiUrl: server.apiUrl || '',
       apiKey: server.apiKey || '',
       webStatsPort: server.webStatsPort || 8080,
-      webApiCode: server.webApiCode || ''
+      webApiCode: server.webApiCode || '',
+      webAdminUsername: server.webAdminUsername || '',
+      webAdminPassword: server.webAdminPassword || ''
     } : defaultData
   )
   const [isSaving, setIsSaving] = useState(false)
@@ -222,6 +226,30 @@ export default function ServerModal({ server, onClose, onSave }: ServerModalProp
                 />
               </div>
             </div>
+            <div className="grid grid-cols-2 gap-3 mt-3">
+              <div>
+                <label className="text-gray-400 text-xs mb-1 block">Panel korisnik</label>
+                <input
+                  value={form.webAdminUsername}
+                  onChange={(e) => update('webAdminUsername', e.target.value)}
+                  placeholder="launcher-admin"
+                  className="input-dark font-mono text-sm"
+                />
+              </div>
+              <div>
+                <label className="text-gray-400 text-xs mb-1 block">Panel lozinka</label>
+                <input
+                  type="password"
+                  value={form.webAdminPassword}
+                  onChange={(e) => update('webAdminPassword', e.target.value)}
+                  placeholder="••••••••••••"
+                  className="input-dark font-mono text-sm"
+                />
+              </div>
+            </div>
+            <p className="text-gray-600 text-xs mt-2">
+              Koristi zaseban korisnički račun iz GIANTS web panela s Game Admin ovlastima.
+            </p>
           </div>
 
           {/* Manual display info (fallback when no Web API code) */}

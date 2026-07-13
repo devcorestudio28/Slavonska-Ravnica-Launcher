@@ -48,6 +48,8 @@ interface BackendConfigServer {
   apiKey?: string
   webStatsPort: number
   webApiCode: string
+  webAdminUsername?: string
+  webAdminPassword?: string
 }
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))

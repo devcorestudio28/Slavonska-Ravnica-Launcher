@@ -28,7 +28,9 @@ export function initDatabase(): Database.Database {
 function runMigrations(): void {
   const columns: [string, string][] = [
     ['web_stats_port', 'INTEGER DEFAULT 8080'],
-    ['web_api_code', "TEXT DEFAULT ''"]
+    ['web_api_code', "TEXT DEFAULT ''"],
+    ['web_admin_username', "TEXT DEFAULT ''"],
+    ['web_admin_password', "TEXT DEFAULT ''"]
   ]
   for (const [name, def] of columns) {
     try {
@@ -73,6 +75,8 @@ function createSchema(): void {
       api_key TEXT DEFAULT '',
       web_stats_port INTEGER DEFAULT 8080,
       web_api_code TEXT DEFAULT '',
+      web_admin_username TEXT DEFAULT '',
+      web_admin_password TEXT DEFAULT '',
       last_sync TEXT DEFAULT NULL,
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now'))

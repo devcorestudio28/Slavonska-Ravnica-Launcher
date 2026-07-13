@@ -14,7 +14,7 @@ import UpdateOverlay, {
 import logoUrl from './assets/logo.png'
 import type { LogEntry, DownloadItem, DownloadProgress, UploadItem } from '../../../shared/types'
 
-export type Page = 'servers' | 'dashboard' | 'mods' | 'settings' | 'admin' | 'logs'
+export type Page = 'servers' | 'dashboard' | 'mods' | 'settings' | 'admin' | 'logs' | 'panel'
 
 export default function App(): React.ReactElement {
   const { isAuthenticated, hasRequiredRole, isLoading, checkSession } = useAuthStore()

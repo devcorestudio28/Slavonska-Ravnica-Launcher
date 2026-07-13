@@ -8,6 +8,7 @@ import Mods from '../pages/Mods'
 import Settings from '../pages/Settings'
 import Admin from '../pages/Admin'
 import Logs from '../pages/Logs'
+import Panel from '../pages/Panel'
 import DownloadBar from '../download/DownloadBar'
 
 interface LayoutProps {
@@ -24,6 +25,7 @@ export default function Layout({ currentPage, setCurrentPage }: LayoutProps): Re
       case 'settings': return <Settings />
       case 'admin': return <Admin />
       case 'logs': return <Logs />
+      case 'panel': return <Panel />
       default: return <Dashboard setPage={setCurrentPage} />
     }
   }

@@ -8,7 +8,7 @@ import type { Mod, UploadItem } from '../../../../../shared/types'
 const STATUS_CONFIG: Record<Mod['status'], { label: string; color: string; bg: string }> = {
   OK:      { label: 'OK',     color: 'text-green-400',  bg: 'bg-green-500/10' },
   UPDATE:  { label: 'UPDATE', color: 'text-orange-400', bg: 'bg-orange-500/10' },
-  NOVI:    { label: 'NOVI',   color: 'text-blue-400',   bg: 'bg-blue-500/10' },
+  NOVI:    { label: 'LOKALNI', color: 'text-blue-400',  bg: 'bg-blue-500/10' },
   FALI:    { label: 'FALI',   color: 'text-red-400',    bg: 'bg-red-500/10' },
   GREŠKA:  { label: 'GREŠKA', color: 'text-red-400',    bg: 'bg-red-500/10' }
 }
@@ -65,7 +65,7 @@ export default function Mods(): React.ReactElement {
     { key: 'all', label: 'Sve', count: counts.total },
     { key: 'FALI', label: 'Fali', count: counts.FALI },
     { key: 'UPDATE', label: 'Update', count: counts.UPDATE },
-    { key: 'NOVI', label: 'Novi', count: counts.NOVI },
+    { key: 'NOVI', label: 'Lokalni', count: counts.NOVI },
     { key: 'OK', label: 'OK', count: counts.OK },
     { key: 'GREŠKA', label: 'Greška', count: counts.GREŠKA }
   ]
@@ -141,7 +141,7 @@ export default function Mods(): React.ReactElement {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
               d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
           </svg>
-          Obriši Zastarjele ({counts.NOVI})
+          Obriši Lokalne ({counts.NOVI})
         </button>
 
         {/* Upload (admin) - only when the active server has FTP/SFTP credentials */}

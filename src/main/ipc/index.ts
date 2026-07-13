@@ -7,6 +7,7 @@ import { registerUploadHandlers } from './upload.ipc'
 import { registerAdminHandlers } from './admin.ipc'
 import { registerLogHandlers } from './log.ipc'
 import { registerWindowHandlers } from './window.ipc'
+import { registerPanelHandlers } from './panel.ipc'
 
 export function registerAllHandlers(): void {
   registerAuthHandlers()
@@ -18,4 +19,5 @@ export function registerAllHandlers(): void {
   registerAdminHandlers()
   registerLogHandlers()
   registerWindowHandlers()
+  registerPanelHandlers()
 }
