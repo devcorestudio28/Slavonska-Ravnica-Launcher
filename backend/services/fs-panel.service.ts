@@ -112,9 +112,23 @@ export class FsPanelService {
     if (!form) throw new Error('GIANTS panel nije vratio obrazac za aktivaciju modova')
 
     const wanted = new Set(filenames.map(normalizeFilename))
-    const selectedInputs = new Set(form.inputs.filter((input) =>
-      input.type === 'checkbox' && [...inputFilenames(input)].some((filename) => wanted.has(normalizeFilename(filename)))
-    ))
+    // In the GIANTS panel the checkbox itself does not always contain the ZIP
+    // filename. It can be held by the surrounding modSelection row instead.
+    // Match against the row first, then fall back to checkbox attributes used by
+    // older panel versions.
+    const selectedInputs = new Set<HtmlInput>()
+    for (const row of parseModRows(form.body)) {
+      const filename = rowFilename(row)
+      if (!filename || !wanted.has(normalizeFilename(filename))) continue
+      const checkbox = form.inputs.find((input) => input.type === 'checkbox' && row.includes(input.html))
+      if (checkbox) selectedInputs.add(checkbox)
+    }
+    for (const input of form.inputs) {
+      if (input.type !== 'checkbox') continue
+      if ([...inputFilenames(input)].some((filename) => wanted.has(normalizeFilename(filename)))) {
+        selectedInputs.add(input)
+      }
+    }
     if (selectedInputs.size !== wanted.size) {
       throw new Error('GIANTS panel nije ponudio kontrole za odabrane modove; osvježi Panel i pokušaj ponovno')
     }
