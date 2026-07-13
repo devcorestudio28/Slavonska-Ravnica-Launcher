@@ -163,6 +163,34 @@ export class DiscordService {
     }
   }
 
+  async sendModUploadNotification(
+    botToken: string,
+    channelId: string,
+    upload: { fileName: string; serverName: string; size: number; uploadedBy: string }
+  ): Promise<void> {
+    if (!botToken) throw new Error('Discord Bot Token nije konfiguriran')
+
+    await axios.post(
+      `${DISCORD_API}/channels/${channelId}/messages`,
+      {
+        embeds: [{
+          title: '📦 Mod uploadan / ažuriran',
+          color: 0x22c55e,
+          fields: [
+            { name: 'Mod', value: `\`${upload.fileName}\``, inline: false },
+            { name: 'Server', value: upload.serverName, inline: true },
+            { name: 'Veličina', value: formatBytes(upload.size), inline: true },
+            { name: 'Uploadao', value: upload.uploadedBy, inline: true }
+          ],
+          timestamp: new Date().toISOString(),
+          footer: { text: 'SR Launcher V2' }
+        }],
+        allowed_mentions: { parse: [] }
+      },
+      { headers: { Authorization: `Bot ${botToken}` } }
+    )
+  }
+
   async refreshToken(
     refreshToken: string,
     clientId: string,
@@ -267,3 +295,10 @@ export class DiscordService {
 }
 
 export const discordService = new DiscordService()
+
+function formatBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB']
+  const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
+  return `${(bytes / 1024 ** index).toFixed(index === 0 ? 0 : 1)} ${units[index]}`
+}

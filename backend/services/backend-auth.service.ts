@@ -167,6 +167,22 @@ export class BackendAuthService {
     })
   }
 
+  /** Asks the backend bot to announce a successfully completed mod upload. */
+  async notifyModUpload(
+    token: string,
+    upload: { fileName: string; serverName: string; size: number }
+  ): Promise<void> {
+    const base = BACKEND_URL.replace(/\/$/, '')
+    const res = await axios.post(`${base}/notifications/mod-upload`, upload, {
+      headers: { Authorization: `Bearer ${token}` },
+      timeout: 10000,
+      validateStatus: () => true
+    })
+    if (res.status !== 200) {
+      throw new Error(res.data?.error || `Discord obavijest nije poslana (${res.status})`)
+    }
+  }
+
   private toSession(profile: BackendProfile, token: string): { user: DiscordUser; hasRole: boolean; canUpload: boolean } {
     // The backend JWT is stored where the Discord access token used to live.
     const user: DiscordUser = {

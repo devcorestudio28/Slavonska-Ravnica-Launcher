@@ -25,6 +25,7 @@ const {
 } = process.env
 
 const DISCORD_API = 'https://discord.com/api/v10'
+const DISCORD_MOD_CHANNEL_ID = process.env.DISCORD_MOD_CHANNEL_ID || '1487478328007987471'
 const SCOPE = 'identify guilds.members.read'
 const SESSION_TTL = '2d'
 const DEFAULT_PUBLIC_URL = ''
@@ -443,6 +444,49 @@ app.post('/admin/config', requireSession, requireAdmin, (req, res) => {
   res.json({ ok: true, config: roleConfig })
 })
 
+app.post('/notifications/mod-upload', requireSession, requireAdmin, async (req, res) => {
+  if (!DISCORD_BOT_TOKEN) return res.status(500).json({ error: 'no_bot_token' })
+
+  const fileName = String(req.body?.fileName || '').trim().slice(0, 1024)
+  const serverName = String(req.body?.serverName || '').trim().slice(0, 1024)
+  const size = Number(req.body?.size || 0)
+  if (!fileName || !serverName) return res.status(400).json({ error: 'invalid_upload' })
+
+  try {
+    const discordRes = await fetch(`${DISCORD_API}/channels/${DISCORD_MOD_CHANNEL_ID}/messages`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        embeds: [{
+          title: '📦 Mod uploadan / ažuriran',
+          color: 0x22c55e,
+          fields: [
+            { name: 'Mod', value: `\`${fileName.replace(/`/g, '')}\``, inline: false },
+            { name: 'Server', value: serverName, inline: true },
+            { name: 'Veličina', value: formatBytes(size), inline: true },
+            { name: 'Uploadao', value: req.user.globalName || req.user.username, inline: true }
+          ],
+          timestamp: new Date().toISOString(),
+          footer: { text: 'SR Launcher V2' }
+        }],
+        allowed_mentions: { parse: [] }
+      })
+    })
+    if (!discordRes.ok) {
+      const detail = await discordRes.text()
+      console.error('Discord notification failed:', discordRes.status, detail)
+      return res.status(502).json({ error: 'discord_notification_failed' })
+    }
+    res.json({ ok: true })
+  } catch (e) {
+    console.error('Discord notification failed:', e.message)
+    res.status(502).json({ error: 'discord_notification_failed' })
+  }
+})
+
 app.put('/admin/servers/:id', requireSession, requireAdmin, async (req, res) => {
   try {
     const server = await upsertServerConfig(req.params.id, { ...req.body, id: req.params.id })
@@ -476,4 +520,11 @@ body{background:#0a0a0a;color:#fff;font-family:'Segoe UI',sans-serif;display:fle
 </style></head><body><div class="box"><div class="icon">${icon}</div>
 <h2>${ok ? 'Uspjeh' : 'Obavijest'}</h2><p>${message}</p>
 <p style="margin-top:20px;font-size:12px;">Možeš zatvoriti ovaj prozor.</p></div></body></html>`
+}
+
+function formatBytes(bytes) {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB']
+  const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
+  return `${(bytes / 1024 ** index).toFixed(index === 0 ? 0 : 1)} ${units[index]}`
 }

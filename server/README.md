@@ -26,6 +26,7 @@ Mali auth + config servis. Drzi sve tajne server-side. Igracki launcher zna samo
    DISCORD_REQUIRED_ROLE_ID
    DISCORD_UPLOAD_ROLE_IDS
    DISCORD_BOT_TOKEN
+   DISCORD_MOD_CHANNEL_ID=1487478328007987471
    JWT_SECRET
    PUBLIC_URL=https://tvoj-railway-url.up.railway.app
    ```

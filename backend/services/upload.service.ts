@@ -5,7 +5,13 @@ import { generateId } from '../../database/database'
 import { ftpService } from './ftp.service'
 import { sftpService } from './sftp.service'
 import { logService } from './log.service'
+import { discordService } from './discord.service'
+import { backendAuthService } from './backend-auth.service'
+import { getSettings } from './settings.service'
+import { isBackendMode } from '../../src/shared/app-config'
 import type { GameServer, UploadItem } from '../../src/shared/types'
+
+const DISCORD_MOD_CHANNEL_ID = '1487478328007987471'
 
 /**
  * Sequential (one-by-one) upload queue for pushing mods to the server over FTP/SFTP.
@@ -99,6 +105,7 @@ export class UploadService {
       item.speed = 0
       item.completedAt = new Date().toISOString()
       logService.success('UPLOAD', `Uploadan: ${item.fileName}`)
+      await this.notifyDiscord(item, server)
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Greška pri uploadu'
       if (controller.signal.aborted) {
@@ -112,6 +119,38 @@ export class UploadService {
     } finally {
       this.activeController = null
       this.broadcastQueue()
+    }
+  }
+
+  private async notifyDiscord(item: UploadItem, server: GameServer): Promise<void> {
+    try {
+      const session = discordService.loadSession()
+      if (!session) throw new Error('Discord sesija nije pronađena')
+
+      if (isBackendMode()) {
+        await backendAuthService.notifyModUpload(session.user.accessToken, {
+          fileName: item.fileName,
+          serverName: server.name,
+          size: item.totalSize
+        })
+      } else {
+        const settings = getSettings()
+        await discordService.sendModUploadNotification(
+          settings.discordBotToken,
+          DISCORD_MOD_CHANNEL_ID,
+          {
+            fileName: item.fileName,
+            serverName: server.name,
+            size: item.totalSize,
+            uploadedBy: session.user.globalName || session.user.username
+          }
+        )
+      }
+      logService.success('DISCORD', `Obavijest poslana za: ${item.fileName}`)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Nepoznata greška'
+      // Discord must never turn a completed FTP/SFTP upload into a failed upload.
+      logService.warning('DISCORD', `Mod je uploadan, ali obavijest nije poslana: ${msg}`)
     }
   }
 
