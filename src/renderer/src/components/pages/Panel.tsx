@@ -1,8 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useServerStore } from '../../store/server.store'
 import type { FsPanelState } from '../../../../../shared/types'
+import logoUrl from '../../assets/logo.png'
 
 const EMPTY_STATE: FsPanelState = { configured: false, status: 'unknown', mods: [] }
+type PanelAction = 'start' | 'stop' | 'restart'
 
 export default function Panel(): React.ReactElement {
   const { activeServer } = useServerStore()
@@ -13,6 +16,7 @@ export default function Panel(): React.ReactElement {
   const [working, setWorking] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
+  const [pendingAction, setPendingAction] = useState<Extract<PanelAction, 'stop' | 'restart'> | null>(null)
 
   const load = async (): Promise<void> => {
     if (!activeServer) return
@@ -36,11 +40,9 @@ export default function Panel(): React.ReactElement {
     void load()
   }, [activeServer?.id])
 
-  const runAction = async (action: 'start' | 'stop' | 'restart'): Promise<void> => {
+  const runAction = async (action: PanelAction): Promise<void> => {
     if (!activeServer) return
-    if (action !== 'start' && !window.confirm(
-      action === 'stop' ? 'Zaustaviti pristup serveru u igri?' : 'Ponovno pokrenuti server u igri?'
-    )) return
+    setPendingAction(null)
     setWorking(action)
     setError(null)
     setMessage(null)
@@ -77,6 +79,9 @@ export default function Panel(): React.ReactElement {
     const query = search.trim().toLowerCase()
     return query ? state.mods.filter((mod) => mod.name.toLowerCase().includes(query)) : state.mods
   }, [state.mods, search])
+
+  const activeMods = filteredMods.filter((mod) => selected.has(mod.id))
+  const inactiveMods = filteredMods.filter((mod) => !selected.has(mod.id))
 
   const dirty = state.mods.some((mod) => selected.has(mod.id) !== mod.active)
   const activeCount = selected.size
@@ -133,14 +138,14 @@ export default function Panel(): React.ReactElement {
                   {working === 'start' ? 'Pokrećem...' : 'Start'}
                 </button>
                 <button
-                  onClick={() => void runAction('stop')}
+                  onClick={() => setPendingAction('stop')}
                   disabled={state.status !== 'running' || !!working}
                   className="btn-danger min-w-28 disabled:opacity-35 disabled:cursor-not-allowed"
                 >
                   {working === 'stop' ? 'Zaustavljam...' : 'Stop'}
                 </button>
                 <button
-                  onClick={() => void runAction('restart')}
+                  onClick={() => setPendingAction('restart')}
                   disabled={state.status !== 'running' || !!working}
                   className="btn-ghost min-w-28 disabled:opacity-35 disabled:cursor-not-allowed"
                 >
@@ -153,7 +158,7 @@ export default function Panel(): React.ReactElement {
           <div className="panel overflow-hidden">
             <div className="p-5 border-b border-dark-400 flex flex-col md:flex-row md:items-center gap-4 justify-between">
               <div>
-                <h2 className="text-white font-semibold">Aktivni modovi</h2>
+                <h2 className="text-white font-semibold">Modovi servera</h2>
                 <p className="text-gray-600 text-xs mt-1">Odabrano {activeCount} od {state.mods.length}</p>
               </div>
               <div className="flex gap-3">
@@ -179,34 +184,134 @@ export default function Panel(): React.ReactElement {
               </div>
             )}
 
-            <div className="max-h-[430px] overflow-y-auto divide-y divide-dark-300">
-              {filteredMods.map((mod) => (
-                <label key={mod.id} className="flex items-center gap-3 px-5 py-3 table-row-hover cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={selected.has(mod.id)}
-                    disabled={state.status === 'running' || !!working}
-                    onChange={() => setSelected((previous) => {
-                      const next = new Set(previous)
-                      next.has(mod.id) ? next.delete(mod.id) : next.add(mod.id)
-                      return next
-                    })}
-                    className="w-4 h-4 accent-yellow-400"
-                  />
-                  <span className="text-gray-300 text-sm font-mono break-all">{mod.name}</span>
-                  <span className={`ml-auto badge ${selected.has(mod.id) ? 'bg-green-500/10 text-green-400' : 'bg-dark-400 text-gray-600'}`}>
-                    {selected.has(mod.id) ? 'Aktivan' : 'Neaktivan'}
-                  </span>
-                </label>
-              ))}
-              {!loading && filteredMods.length === 0 && (
-                <div className="p-10 text-center text-gray-600 text-sm">Nema modova za prikaz.</div>
-              )}
+            <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-dark-300">
+              <ModSection
+                title="Aktivni modovi"
+                count={activeMods.length}
+                mods={activeMods}
+                selected={selected}
+                disabled={state.status === 'running' || !!working}
+                loading={loading}
+                emptyText={search ? 'Nema aktivnih modova za ovu pretragu.' : 'Nema aktivnih modova.'}
+                onToggle={setSelected}
+              />
+              <ModSection
+                title="Neaktivni modovi"
+                count={inactiveMods.length}
+                mods={inactiveMods}
+                selected={selected}
+                disabled={state.status === 'running' || !!working}
+                loading={loading}
+                emptyText={search ? 'Nema neaktivnih modova za ovu pretragu.' : 'Nema neaktivnih modova.'}
+                onToggle={setSelected}
+              />
             </div>
           </div>
         </>
       )}
+
+      {pendingAction && (
+        <ActionConfirmation
+          action={pendingAction}
+          serverName={activeServer.name}
+          onCancel={() => setPendingAction(null)}
+          onConfirm={() => void runAction(pendingAction)}
+        />
+      )}
     </div>
+  )
+}
+
+interface ModSectionProps {
+  title: string
+  count: number
+  mods: FsPanelState['mods']
+  selected: Set<string>
+  disabled: boolean
+  loading: boolean
+  emptyText: string
+  onToggle: React.Dispatch<React.SetStateAction<Set<string>>>
+}
+
+function ModSection({ title, count, mods, selected, disabled, loading, emptyText, onToggle }: ModSectionProps): React.ReactElement {
+  return (
+    <section className="min-w-0">
+      <div className="px-5 py-3 bg-dark-500/40 border-b border-dark-300 flex items-center justify-between">
+        <h3 className="text-gray-300 text-sm font-semibold">{title}</h3>
+        <span className="badge bg-dark-400 text-gray-400">{count}</span>
+      </div>
+      <div className="h-[390px] overflow-y-auto divide-y divide-dark-300">
+        {mods.map((mod) => (
+          <label key={mod.id} className="flex items-center gap-3 px-5 py-3 table-row-hover cursor-pointer">
+            <input
+              type="checkbox"
+              checked={selected.has(mod.id)}
+              disabled={disabled}
+              onChange={() => onToggle((previous) => {
+                const next = new Set(previous)
+                next.has(mod.id) ? next.delete(mod.id) : next.add(mod.id)
+                return next
+              })}
+              className="w-4 h-4 accent-yellow-400 shrink-0"
+            />
+            <span className="text-gray-300 text-sm font-mono break-all">{mod.name}</span>
+          </label>
+        ))}
+        {!loading && mods.length === 0 && (
+          <div className="h-full min-h-32 flex items-center justify-center px-6 text-center text-gray-600 text-sm">
+            {emptyText}
+          </div>
+        )}
+      </div>
+    </section>
+  )
+}
+
+function ActionConfirmation({ action, serverName, onCancel, onConfirm }: {
+  action: 'stop' | 'restart'
+  serverName: string
+  onCancel: () => void
+  onConfirm: () => void
+}): React.ReactElement {
+  const isStop = action === 'stop'
+  return createPortal(
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+      <div className="panel w-full max-w-md overflow-hidden shadow-2xl" style={{ boxShadow: '0 24px 80px rgba(0,0,0,0.85)' }}>
+        <div className="px-5 py-4 border-b border-dark-400 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-full bg-gold/10 border border-gold/30 flex items-center justify-center">
+              <img src={logoUrl} alt="SR" className="w-7 h-7 object-contain" />
+            </div>
+            <div>
+              <div className="text-white font-semibold text-sm">Potvrda akcije</div>
+              <div className="text-gray-500 text-xs">{serverName}</div>
+            </div>
+          </div>
+          <button onClick={onCancel} className="text-gray-500 hover:text-white transition-colors" aria-label="Zatvori">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div className="p-5">
+          <h2 className="text-white text-lg font-semibold mb-2">
+            {isStop ? 'Zaustaviti server u igri?' : 'Ponovno pokrenuti server u igri?'}
+          </h2>
+          <p className="text-gray-400 text-sm leading-relaxed">
+            {isStop
+              ? 'Igrači će izgubiti pristup serveru dok ga ponovno ne pokreneš. G-Portal host ostat će uključen.'
+              : 'Server će se kratko zaustaviti i automatski ponovno pokrenuti.'}
+          </p>
+        </div>
+        <div className="px-5 py-4 border-t border-dark-400 flex justify-end gap-3">
+          <button onClick={onCancel} className="btn-ghost">Odustani</button>
+          <button onClick={onConfirm} className={isStop ? 'btn-danger' : 'btn-gold'}>
+            {isStop ? 'Zaustavi server' : 'Ponovno pokreni'}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
   )
 }
 
