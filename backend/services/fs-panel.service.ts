@@ -14,6 +14,7 @@ interface HtmlInput {
 }
 
 interface HtmlForm {
+  name: string
   action: string
   method: string
   body: string
@@ -35,15 +36,12 @@ export class FsPanelService {
     if (!this.isConfigured(server)) return { configured: false, status: 'unknown', mods: [] }
 
     const session = await this.login(server)
-    const [indexHtml, modsHtml] = await Promise.all([
-      this.get(session, '/index.html?lang=en'),
-      this.get(session, '/mods.html?lang=en')
-    ])
+    const indexHtml = await this.get(session, '/index.html?lang=en')
 
     return {
       configured: true,
       status: this.readStatus(indexHtml),
-      mods: this.readMods(modsHtml)
+      mods: this.readMods(indexHtml)
     }
   }
 
@@ -55,29 +53,81 @@ export class FsPanelService {
     if (!form) throw new Error(`GIANTS panel nema dostupnu akciju: ${action}`)
 
     await this.submitForm(session, path, form, (input) => {
-      if (input.type !== 'submit') return input.type !== 'checkbox' && input.type !== 'radio' || input.checked
+      if (input.type !== 'submit') {
+        return !['checkbox', 'radio', 'option'].includes(input.type) || input.checked
+      }
       return this.matchesAction(input, action)
     })
+
+    if (action !== 'restart') {
+      const expected = action === 'start' ? 'running' : 'stopped'
+      for (let attempt = 0; attempt < 20; attempt++) {
+        await sleep(1000)
+        const nextHtml = await this.get(session, path)
+        if (this.readStatus(nextHtml) === expected) return
+      }
+      throw new Error(action === 'start'
+        ? 'GIANTS panel nije potvrdio pokretanje servera'
+        : 'GIANTS panel nije potvrdio zaustavljanje servera')
+    }
   }
 
   async saveActiveMods(server: GameServer, activeModIds: string[]): Promise<void> {
     const session = await this.login(server)
-    const path = '/mods.html?lang=en'
-    const html = await this.get(session, path)
-    const form = this.findModForm(html)
+    const path = '/index.html?lang=en'
+    const desired = new Set(activeModIds.map(decodeURIComponentSafe))
+
+    let html = await this.get(session, path)
+    if (this.readStatus(html) === 'running') throw new Error('Prvo zaustavi server pa spremi aktivne modove')
+
+    const active = new Set(this.readMods(html).filter((mod) => mod.active).map((mod) => decodeURIComponentSafe(mod.id)))
+    const deactivate = [...active].filter((filename) => !desired.has(filename))
+    if (deactivate.length) {
+      await this.submitModForm(session, path, html, 'ActiveMods', deactivate, /deactivate|disable|remove|deaktiv/i)
+      html = await this.get(session, path)
+    }
+
+    const activeAfterRemoval = new Set(this.readMods(html).filter((mod) => mod.active).map((mod) => decodeURIComponentSafe(mod.id)))
+    const activate = [...desired].filter((filename) => !activeAfterRemoval.has(filename))
+    if (activate.length) {
+      await this.submitModForm(session, path, html, 'InactiveMods', activate, /activate|enable|add|aktiv/i)
+      html = await this.get(session, path)
+    }
+
+    const confirmed = new Set(this.readMods(html).filter((mod) => mod.active).map((mod) => decodeURIComponentSafe(mod.id)))
+    const missing = [...desired].filter((filename) => !confirmed.has(filename))
+    const extra = [...confirmed].filter((filename) => !desired.has(filename))
+    if (missing.length || extra.length) throw new Error('GIANTS panel nije potvrdio promjenu aktivnih modova')
+  }
+
+  private async submitModForm(
+    session: PanelSession,
+    path: string,
+    html: string,
+    formName: 'ActiveMods' | 'InactiveMods',
+    filenames: string[],
+    buttonPattern: RegExp
+  ): Promise<void> {
+    const form = this.parseForms(html).find((candidate) => candidate.name === formName)
     if (!form) throw new Error('GIANTS panel nije vratio obrazac za aktivaciju modova')
 
-    const desired = new Set(activeModIds)
-    const modInputs = this.modInputs(form)
-    const modIds = new Map(modInputs.map((input) => [input.html, this.modId(input)]))
-    const saveButton = form.inputs.find((input) =>
-      input.type === 'submit' && /save|activate|apply|speichern|aktivieren/i.test(`${input.name} ${input.value}`)
+    const wanted = new Set(filenames.map(normalizeFilename))
+    const selectedInputs = new Set(form.inputs.filter((input) =>
+      input.type === 'checkbox' && [...inputFilenames(input)].some((filename) => wanted.has(normalizeFilename(filename)))
+    ))
+    if (selectedInputs.size !== wanted.size) {
+      throw new Error('GIANTS panel nije ponudio kontrole za odabrane modove; osvježi Panel i pokušaj ponovno')
+    }
+
+    const actionButton = form.inputs.find((input) =>
+      input.type === 'submit' && buttonPattern.test(`${input.name} ${input.value}`)
     ) ?? form.inputs.find((input) => input.type === 'submit')
+    if (!actionButton) throw new Error('GIANTS panel nije ponudio gumb za promjenu modova')
 
     await this.submitForm(session, path, form, (input) => {
-      if (input.type === 'submit') return input === saveButton
-      if (input.type === 'checkbox' && modIds.has(input.html)) return desired.has(modIds.get(input.html) as string)
-      if (input.type === 'checkbox' || input.type === 'radio') return input.checked
+      if (input.type === 'submit') return input === actionButton
+      if (input.type === 'checkbox') return selectedInputs.has(input)
+      if (input.type === 'radio' || input.type === 'option') return input.checked
       return true
     })
   }
@@ -137,6 +187,7 @@ export class FsPanelService {
       transformResponse: [(data) => data],
       headers: { Cookie: session.cookie }
     })
+    this.updateCookie(session, response)
     const html = String(response.data)
     if (this.isLoginPage(html)) throw new Error('GIANTS panel sesija je odbijena')
     return html
@@ -167,6 +218,7 @@ export class FsPanelService {
         Referer: new URL(currentPath, `${session.baseUrl}/`).toString()
       }
     })
+    this.updateCookie(session, response)
     if (response.status >= 400) throw new Error(`GIANTS panel je odbio zahtjev (${response.status})`)
   }
 
@@ -193,41 +245,21 @@ export class FsPanelService {
   }
 
   private readMods(html: string): FsPanelMod[] {
-    const form = this.findModForm(html)
-    if (!form) return []
-    return this.modInputs(form).map((input) => ({
-      id: this.modId(input),
-      name: this.modName(form.body, input),
-      active: input.checked
-    })).sort((a, b) => a.name.localeCompare(b.name))
-  }
-
-  private findModForm(html: string): HtmlForm | undefined {
-    return this.parseForms(html)
-      .map((form) => ({ form, score: this.modInputs(form).length }))
-      .filter(({ score }) => score > 0)
-      .sort((a, b) => b.score - a.score)[0]?.form
-  }
-
-  private modInputs(form: HtmlForm): HtmlInput[] {
-    const checkboxes = form.inputs.filter((input) => input.type === 'checkbox' && input.name)
-    const likely = checkboxes.filter((input) => /mod/i.test(`${input.name} ${input.id} ${input.html}`))
-    return likely.length ? likely : checkboxes
-  }
-
-  private modId(input: HtmlInput): string {
-    return `${encodeURIComponent(input.name)}|${encodeURIComponent(input.value)}`
-  }
-
-  private modName(formBody: string, input: HtmlInput): string {
-    if (/\.zip$/i.test(input.value)) return decodeHtml(input.value)
-    if (input.id) {
-      const escaped = escapeRegExp(input.id)
-      const label = formBody.match(new RegExp(`<label\\b[^>]*for=["']${escaped}["'][^>]*>([\\s\\S]*?)<\\/label>`, 'i'))?.[1]
-      if (label) return stripHtml(label)
+    const mods = new Map<string, FsPanelMod>()
+    for (const form of this.parseForms(html)) {
+      if (form.name !== 'ActiveMods' && form.name !== 'InactiveMods') continue
+      for (const row of parseModRows(form.body)) {
+        const filename = rowFilename(row)
+        if (!filename) continue
+        const id = encodeURIComponent(filename)
+        mods.set(id, {
+          id,
+          name: rowField(row, 'Name') || filename,
+          active: form.name === 'ActiveMods'
+        })
+      }
     }
-    const title = attr(input.html, 'title')
-    return decodeHtml(title || input.value || input.name)
+    return [...mods.values()].sort((a, b) => a.name.localeCompare(b.name))
   }
 
   private parseForms(html: string): HtmlForm[] {
@@ -258,7 +290,38 @@ export class FsPanelService {
           html: raw
         })
       }
+      for (const selectMatch of body.matchAll(/<select\b([^>]*)>([\s\S]*?)<\/select>/gi)) {
+        const selectHtml = selectMatch[0]
+        const selectName = decodeHtml(attr(selectHtml, 'name') || '')
+        const selectId = decodeHtml(attr(selectHtml, 'id') || '')
+        const multiple = /\bmultiple(?:\s*=|\s|>)/i.test(selectHtml)
+        const options = [...selectMatch[2].matchAll(/<option\b([^>]*)>([\s\S]*?)<\/option>/gi)]
+        const hasSelected = options.some((option) => /\bselected(?:\s*=|\s|>)/i.test(option[0]))
+        options.forEach((option, index) => {
+          const raw = option[0]
+          inputs.push({
+            name: selectName,
+            value: decodeHtml(attr(raw, 'value') || stripHtml(option[2])),
+            type: 'option',
+            id: `${selectId}:${index}`,
+            checked: /\bselected(?:\s*=|\s|>)/i.test(raw) || (!multiple && !hasSelected && index === 0),
+            html: raw
+          })
+        })
+      }
+      for (const textareaMatch of body.matchAll(/<textarea\b([^>]*)>([\s\S]*?)<\/textarea>/gi)) {
+        const raw = textareaMatch[0]
+        inputs.push({
+          name: decodeHtml(attr(raw, 'name') || ''),
+          value: decodeHtml(textareaMatch[2]),
+          type: 'textarea',
+          id: decodeHtml(attr(raw, 'id') || ''),
+          checked: false,
+          html: raw
+        })
+      }
       forms.push({
+        name: decodeHtml(attr(formAttrs, 'name') || ''),
         action: decodeHtml(attr(formAttrs, 'action') || ''),
         method: (attr(formAttrs, 'method') || 'get').toLowerCase(),
         body,
@@ -270,6 +333,18 @@ export class FsPanelService {
 
   private isLoginPage(html: string): boolean {
     return /<input\b[^>]*name=["']username["']/i.test(html) && /<input\b[^>]*name=["']password["']/i.test(html)
+  }
+
+  private updateCookie(session: PanelSession, response: AxiosResponse): void {
+    const fresh = this.readCookie(response)
+    if (!fresh) return
+    const values = new Map<string, string>()
+    for (const pair of `${session.cookie}; ${fresh}`.split(';')) {
+      const trimmed = pair.trim()
+      const separator = trimmed.indexOf('=')
+      if (separator > 0) values.set(trimmed.slice(0, separator), trimmed.slice(separator + 1))
+    }
+    session.cookie = [...values].map(([name, value]) => `${name}=${value}`).join('; ')
   }
 }
 
@@ -290,8 +365,54 @@ function stripHtml(value: string): string {
   return decodeHtml(value.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim())
 }
 
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+export const fsPanelService = new FsPanelService()
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-export const fsPanelService = new FsPanelService()
+function parseModRows(formBody: string): string[] {
+  const starts = [...formBody.matchAll(/<div\b[^>]*class=["'][^"']*\bmodSelection-(?:active|inactive)\b[^"']*["'][^>]*>/gi)]
+  return starts.map((match, index) => formBody.slice(
+    match.index,
+    index + 1 < starts.length ? starts[index + 1].index : formBody.length
+  ))
+}
+
+function rowField(row: string, label: string): string {
+  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const match = row.match(new RegExp(
+    `<div\\b[^>]*>\\s*${escaped}\\s*<\\/div>\\s*<div\\b[^>]*>([\\s\\S]*?)<\\/div>`,
+    'i'
+  ))
+  return match ? stripHtml(match[1]).replace(/\.{3}$/, '').trim() : ''
+}
+
+function rowFilename(row: string): string {
+  const openingTag = row.match(/^<div\b[^>]*>/i)?.[0] || ''
+  const exactId = decodeHtml(attr(openingTag, 'id') || '')
+  if (/\.(?:zip|dlc)$/i.test(exactId)) return exactId
+  const checkbox = row.match(/<input\b[^>]*type=["']checkbox["'][^>]*>/i)?.[0] || ''
+  for (const candidate of [attr(checkbox, 'value'), attr(checkbox, 'id'), attr(checkbox, 'name')]) {
+    const value = decodeHtml(candidate || '')
+    if (/\.(?:zip|dlc)$/i.test(value)) return value
+  }
+  return rowField(row, 'Filename')
+}
+
+function inputFilenames(input: HtmlInput): Set<string> {
+  const values = [input.name, input.value, input.id].map(decodeURIComponentSafe)
+  return new Set(values.filter((value) => /\.(?:zip|dlc)$/i.test(value)))
+}
+
+function normalizeFilename(value: string): string {
+  return value.trim().toLowerCase()
+}
+
+function decodeURIComponentSafe(value: string): string {
+  try {
+    return decodeURIComponent(value)
+  } catch {
+    return value
+  }
+}

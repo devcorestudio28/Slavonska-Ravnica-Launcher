@@ -47,8 +47,7 @@ export default function Panel(): React.ReactElement {
     try {
       const response = await window.electron.panelAction(activeServer.id, action)
       if (!response.success) throw new Error(response.error || 'Akcija nije uspjela')
-      setMessage(action === 'start' ? 'Pokretanje je poslano.' : action === 'stop' ? 'Zaustavljanje je poslano.' : 'Restart je poslan.')
-      await delay(1800)
+      setMessage(action === 'start' ? 'Server je pokrenut.' : action === 'stop' ? 'Server je zaustavljen.' : 'Restart je poslan.')
       await load()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Akcija nije uspjela')
@@ -221,8 +220,4 @@ function Notice({ color, children }: { color: 'red' | 'green'; children: React.R
 
 function EmptyPanel({ text }: { text: string }): React.ReactElement {
   return <div className="h-full flex items-center justify-center text-gray-600">{text}</div>
-}
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
 }
