@@ -2,12 +2,14 @@ import React, { useEffect, useState } from 'react'
 import { useServerStore } from '../../store/server.store'
 import { useModStore } from '../../store/mod.store'
 import type { Page } from '../../App'
+import { useI18n } from '../../i18n'
 
 interface DashboardProps {
   setPage: (page: Page) => void
 }
 
 export default function Dashboard({ setPage }: DashboardProps): React.ReactElement {
+  const { t } = useI18n()
   const { activeServer, fetchServers, pingServer } = useServerStore()
   const { mods, syncMods, isSyncing, getCounts } = useModStore()
   const [isLaunching, setIsLaunching] = useState(false)
@@ -76,8 +78,8 @@ export default function Dashboard({ setPage }: DashboardProps): React.ReactEleme
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-white font-bold text-2xl">Dashboard</h1>
-          <p className="text-gray-500 text-sm mt-1">Pregled aktivnog servera</p>
+          <h1 className="text-white font-bold text-2xl">{t('dashboard')}</h1>
+          <p className="text-gray-500 text-sm mt-1">{t('activeServerOverview')}</p>
         </div>
         <button
           onClick={handleSync}
@@ -88,7 +90,7 @@ export default function Dashboard({ setPage }: DashboardProps): React.ReactEleme
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
               d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
           </svg>
-          {isPinging ? 'Provjera...' : isSyncing ? 'Sinkronizacija...' : 'Sinkroniziraj'}
+          {isPinging ? t('checking') : isSyncing ? t('syncing') : t('sync')}
         </button>
       </div>
 
@@ -102,11 +104,11 @@ export default function Dashboard({ setPage }: DashboardProps): React.ReactEleme
             </svg>
           </div>
           <div>
-            <p className="text-white font-medium mb-1">Nema odabranog servera</p>
-            <p className="text-gray-500 text-sm">Odaberite server u kategoriji Serveri</p>
+            <p className="text-white font-medium mb-1">{t('noServerSelected')}</p>
+            <p className="text-gray-500 text-sm">{t('selectServer')}</p>
           </div>
           <button onClick={() => setPage('servers')} className="btn-gold">
-            Idi na Servere
+            {t('goToServers')}
           </button>
         </div>
       )}
@@ -126,7 +128,7 @@ export default function Dashboard({ setPage }: DashboardProps): React.ReactEleme
                   <h2 className="text-white font-bold text-xl">{activeServer.name}</h2>
                   <div className="flex items-center gap-3 mt-1">
                     <span className={`text-sm font-medium ${activeServer.status === 'online' ? 'text-green-400' : 'text-red-400'}`}>
-                      {activeServer.status === 'online' ? 'Online' : 'Offline'}
+                      {activeServer.status === 'online' ? t('online') : t('offline')}
                     </span>
                     {activeServer.ping > 0 && (
                       <span className="text-gray-500 text-sm">{activeServer.ping}ms</span>
@@ -161,14 +163,14 @@ export default function Dashboard({ setPage }: DashboardProps): React.ReactEleme
           {/* Mod count cards */}
           <div className="grid grid-cols-4 gap-3">
             <ModCountCard
-              label="Moji modovi"
+              label={t('myMods')}
               count={counts.total}
               color="text-gray-300"
               bgColor="bg-dark-300"
               onClick={() => setPage('mods')}
             />
             <ModCountCard
-              label="Fali"
+              label={t('missing')}
               count={counts.FALI}
               color="text-red-400"
               bgColor="bg-red-500/10"
@@ -176,7 +178,7 @@ export default function Dashboard({ setPage }: DashboardProps): React.ReactEleme
               onClick={() => setPage('mods')}
             />
             <ModCountCard
-              label="Update"
+              label={t('update')}
               count={counts.UPDATE}
               color="text-orange-400"
               bgColor="bg-orange-500/10"

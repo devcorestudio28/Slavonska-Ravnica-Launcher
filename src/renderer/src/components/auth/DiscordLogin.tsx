@@ -3,11 +3,13 @@ import { useAuthStore } from '../../store/auth.store'
 import DiscordConfigModal from './DiscordConfigModal'
 import logoUrl from '../../assets/logo.png'
 import { isBackendMode } from '../../../../shared/app-config'
+import { useI18n } from '../../i18n'
 
 export default function DiscordLogin(): React.ReactElement {
   const { login, isLoading, error, setError } = useAuthStore()
   const [showConfig, setShowConfig] = useState(false)
   const backendMode = isBackendMode()
+  const { t } = useI18n()
 
   return (
     <div className="h-screen w-screen bg-dark flex flex-col items-center justify-center relative overflow-hidden">
@@ -50,7 +52,7 @@ export default function DiscordLogin(): React.ReactElement {
 
         {/* Login section */}
         <div className="w-full flex flex-col items-center gap-4">
-          <h2 className="text-white font-semibold text-lg">Prijava putem Discorda</h2>
+          <h2 className="text-white font-semibold text-lg">{t('loginDiscord')}</h2>
           <p className="text-gray-500 text-sm text-center leading-relaxed">
             Morate se prijaviti putem Discord računa za pristup SR Launcheru.
           </p>
@@ -73,12 +75,12 @@ export default function DiscordLogin(): React.ReactElement {
             {isLoading ? (
               <>
                 <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                <span>Prijava u tijeku...</span>
+                <span>{t('loggingIn')}</span>
               </>
             ) : (
               <>
                 <DiscordIcon />
-                <span>Prijava putem Discorda</span>
+                <span>{t('loginDiscord')}</span>
               </>
             )}
           </button>
@@ -94,7 +96,7 @@ export default function DiscordLogin(): React.ReactElement {
                 d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
-            <span>Konfiguriraj Discord</span>
+            <span>{t('configureDiscord')}</span>
           </button>
           )}
         </div>

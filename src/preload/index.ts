@@ -10,6 +10,8 @@ const api: IElectronAPI = {
   checkSession: () => ipcRenderer.invoke('auth:check-session'),
   logout: () => ipcRenderer.invoke('auth:logout'),
   checkRole: (userId) => ipcRenderer.invoke('auth:check-role', userId),
+  getUserLanguage: (userId) => ipcRenderer.invoke('auth:get-user-language', userId),
+  saveUserLanguage: (userId, language) => ipcRenderer.invoke('auth:save-user-language', userId, language),
 
   // Servers
   getServers: () => ipcRenderer.invoke('servers:get-all'),

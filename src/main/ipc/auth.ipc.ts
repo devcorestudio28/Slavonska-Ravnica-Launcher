@@ -4,8 +4,11 @@ import { backendAuthService } from '../../../backend/services/backend-auth.servi
 import { upsertServersFromConfig } from '../../../backend/services/server.service'
 import { getSettings } from '../../../backend/services/settings.service'
 import { logService } from '../../../backend/services/log.service'
+import { getDb } from '../../../database/database'
 import { isBackendMode } from '../../../src/shared/app-config'
-import type { IPCResponse } from '../../../src/shared/types'
+import type { AppLanguage, IPCResponse } from '../../../src/shared/types'
+
+const LANGUAGES: AppLanguage[] = ['hr', 'en', 'de', 'fr']
 
 export function registerAuthHandlers(): void {
   ipcMain.handle('auth:discord-login', async (): Promise<IPCResponse> => {
@@ -122,5 +125,20 @@ export function registerAuthHandlers(): void {
       const msg = err instanceof Error ? err.message : 'Greška provjere role'
       return { success: false, error: msg }
     }
+  })
+
+  ipcMain.handle('auth:get-user-language', async (_event, userId: string): Promise<IPCResponse<AppLanguage>> => {
+    const row = getDb().prepare('SELECT language FROM user_preferences WHERE user_id = ?').get(userId) as { language?: string } | undefined
+    const language = LANGUAGES.includes(row?.language as AppLanguage) ? row!.language as AppLanguage : 'hr'
+    return { success: true, data: language }
+  })
+
+  ipcMain.handle('auth:save-user-language', async (_event, userId: string, language: AppLanguage): Promise<IPCResponse<AppLanguage>> => {
+    if (!LANGUAGES.includes(language)) return { success: false, error: 'Unsupported language' }
+    getDb().prepare(`
+      INSERT INTO user_preferences (user_id, language, updated_at) VALUES (?, ?, datetime('now'))
+      ON CONFLICT(user_id) DO UPDATE SET language = excluded.language, updated_at = datetime('now')
+    `).run(userId, language)
+    return { success: true, data: language }
   })
 }

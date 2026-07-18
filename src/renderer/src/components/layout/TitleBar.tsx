@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useAuthStore } from '../../store/auth.store'
 import logoUrl from '../../assets/logo.png'
+import { languageOptions, useI18n } from '../../i18n'
 
 declare global {
   interface Window {
@@ -14,6 +15,7 @@ declare global {
 
 export default function TitleBar(): React.ReactElement {
   const { user } = useAuthStore()
+  const { language, setLanguage, t } = useI18n()
   const [version, setVersion] = useState('...')
 
   useEffect(() => {
@@ -56,6 +58,18 @@ export default function TitleBar(): React.ReactElement {
             <span className="text-gray-400 text-xs">{user.globalName || user.username}</span>
           </div>
         )}
+
+        <label className="relative flex items-center gap-1.5 pr-3 border-r border-dark-400 text-gray-500 text-xs" title={t('language')}>
+          <span className="text-sm">🌐</span>
+          <select
+            value={language}
+            onChange={(event) => void setLanguage(event.target.value as typeof language)}
+            className="appearance-none bg-transparent text-gray-300 hover:text-white outline-none cursor-pointer pr-1 text-xs"
+            aria-label={t('language')}
+          >
+            {languageOptions.map((option) => <option key={option.value} value={option.value} className="bg-dark text-white">{option.flag} {t(option.labelKey)}</option>)}
+          </select>
+        </label>
 
         {/* Window controls */}
         <div className="flex items-center gap-1">

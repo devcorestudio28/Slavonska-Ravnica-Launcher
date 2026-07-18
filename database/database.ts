@@ -142,6 +142,13 @@ function createSchema(): void {
       updated_at TEXT DEFAULT (datetime('now'))
     );
 
+    -- UI preferences are scoped to the Discord account, not to a shared app setting.
+    CREATE TABLE IF NOT EXISTS user_preferences (
+      user_id TEXT PRIMARY KEY,
+      language TEXT NOT NULL DEFAULT 'hr' CHECK(language IN ('hr', 'en', 'de', 'fr')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    );
+
     CREATE TABLE IF NOT EXISTS downloads (
       id TEXT PRIMARY KEY,
       mod_id TEXT NOT NULL,

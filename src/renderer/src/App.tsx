@@ -13,10 +13,11 @@ import UpdateOverlay, {
 } from './components/update/UpdateOverlay'
 import logoUrl from './assets/logo.png'
 import type { LogEntry, DownloadItem, DownloadProgress, UploadItem } from '../../../shared/types'
+import { I18nProvider } from './i18n'
 
 export type Page = 'servers' | 'dashboard' | 'mods' | 'settings' | 'admin' | 'logs' | 'panel'
 
-export default function App(): React.ReactElement {
+function AppContent(): React.ReactElement {
   const { isAuthenticated, hasRequiredRole, isLoading, checkSession } = useAuthStore()
   const { addLog } = useLogStore()
   const { updateProgress: updateDownloadProgress, setQueue } = useDownloadStore()
@@ -138,4 +139,8 @@ export default function App(): React.ReactElement {
       )}
     </>
   )
+}
+
+export default function App(): React.ReactElement {
+  return <I18nProvider><AppContent /></I18nProvider>
 }

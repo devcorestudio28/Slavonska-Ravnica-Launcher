@@ -1,8 +1,10 @@
 import React from 'react'
 import { useAuthStore } from '../../store/auth.store'
+import { useI18n } from '../../i18n'
 
 export default function AccessDenied(): React.ReactElement {
   const { user, logout } = useAuthStore()
+  const { t } = useI18n()
 
   return (
     <div className="h-screen w-screen bg-dark flex flex-col items-center justify-center relative overflow-hidden">
@@ -23,7 +25,7 @@ export default function AccessDenied(): React.ReactElement {
 
         {/* Message */}
         <div>
-          <h2 className="text-white font-bold text-xl mb-2">Nemate pristup launcheru</h2>
+          <h2 className="text-white font-bold text-xl mb-2">{t('accessDenied')}</h2>
           <p className="text-gray-400 text-sm leading-relaxed">
             Nemate potrebnu Discord ulogu za igranje.
           </p>
@@ -58,7 +60,7 @@ export default function AccessDenied(): React.ReactElement {
           onClick={logout}
           className="btn-ghost w-full"
         >
-          Odjava
+          {t('logout')}
         </button>
       </div>
     </div>

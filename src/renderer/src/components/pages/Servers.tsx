@@ -3,10 +3,12 @@ import { useServerStore } from '../../store/server.store'
 import type { GameServer } from '../../../../../shared/types'
 import ServerModal from '../common/ServerModal'
 import { useAuthStore } from '../../store/auth.store'
+import { useI18n } from '../../i18n'
 
 export default function Servers(): React.ReactElement {
   const { servers, activeServer, fetchServers, setActiveServer, deleteServer, pingServer } = useServerStore()
   const { canUpload } = useAuthStore()
+  const { t } = useI18n()
   const [showModal, setShowModal] = useState(false)
   const [editServer, setEditServer] = useState<GameServer | null>(null)
   const [pinging, setPinging] = useState<string | null>(null)
@@ -42,14 +44,14 @@ export default function Servers(): React.ReactElement {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-white font-bold text-2xl">Serveri</h1>
+          <h1 className="text-white font-bold text-2xl">{t('servers')}</h1>
           <p className="text-gray-500 text-sm mt-1">{servers.length} serverа konfigurirano</p>
         </div>
         {canUpload && <button onClick={handleAdd} className="btn-gold flex items-center gap-2">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
-          Dodaj Server
+          {t('addServer')}
         </button>}
       </div>
 
@@ -63,10 +65,10 @@ export default function Servers(): React.ReactElement {
             </svg>
           </div>
           <div>
-            <p className="text-white font-medium mb-1">Nema dodanih servera</p>
-            <p className="text-gray-500 text-sm">Kliknite "Dodaj Server" za konfiguraciju</p>
+            <p className="text-white font-medium mb-1">{t('noServers')}</p>
+            <p className="text-gray-500 text-sm">{t('clickAddServer')}</p>
           </div>
-          {canUpload && <button onClick={handleAdd} className="btn-gold">Dodaj prvi server</button>}
+          {canUpload && <button onClick={handleAdd} className="btn-gold">{t('addFirstServer')}</button>}
         </div>
       ) : (
         <div className="flex flex-col gap-2">

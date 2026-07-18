@@ -139,6 +139,8 @@ export interface DiscordUser {
   expiresAt: number
 }
 
+export type AppLanguage = 'hr' | 'en' | 'de' | 'fr'
+
 export interface GuildMember {
   userId: string
   roles: string[]
@@ -266,6 +268,8 @@ export interface IElectronAPI {
   checkSession: () => Promise<IPCResponse<{ user: DiscordUser; hasRole: boolean; canUpload?: boolean } | null>>
   logout: () => Promise<IPCResponse>
   checkRole: (userId: string) => Promise<IPCResponse<boolean>>
+  getUserLanguage: (userId: string) => Promise<IPCResponse<AppLanguage>>
+  saveUserLanguage: (userId: string, language: AppLanguage) => Promise<IPCResponse<AppLanguage>>
 
   // Admin (role management - backend mode)
   adminGetRoles: () => Promise<IPCResponse<GuildRole[]>>

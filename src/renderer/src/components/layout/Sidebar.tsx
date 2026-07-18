@@ -3,6 +3,7 @@ import type { Page } from '../../App'
 import { useAuthStore } from '../../store/auth.store'
 import { useServerStore } from '../../store/server.store'
 import { useDownloadStore } from '../../store/download.store'
+import { useI18n } from '../../i18n'
 
 interface SidebarProps {
   currentPage: Page
@@ -19,7 +20,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   {
     id: 'servers',
-    label: 'Serveri',
+    label: 'servers',
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
@@ -29,7 +30,7 @@ const navItems: NavItem[] = [
   },
   {
     id: 'dashboard',
-    label: 'Dashboard',
+    label: 'dashboard',
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
@@ -39,7 +40,7 @@ const navItems: NavItem[] = [
   },
   {
     id: 'mods',
-    label: 'Modovi',
+    label: 'mods',
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
@@ -49,7 +50,7 @@ const navItems: NavItem[] = [
   },
   {
     id: 'settings',
-    label: 'Postavke',
+    label: 'settings',
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
@@ -60,7 +61,7 @@ const navItems: NavItem[] = [
   },
   {
     id: 'admin',
-    label: 'Admin',
+    label: 'admin',
     adminOnly: true,
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -71,7 +72,7 @@ const navItems: NavItem[] = [
   },
   {
     id: 'logs',
-    label: 'Log',
+    label: 'logs',
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
@@ -81,7 +82,7 @@ const navItems: NavItem[] = [
   },
   {
     id: 'panel',
-    label: 'Panel',
+    label: 'panel',
     adminOnly: true,
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -96,6 +97,7 @@ export default function Sidebar({ currentPage, setCurrentPage }: SidebarProps): 
   const { user, logout, canUpload } = useAuthStore()
   const { activeServer } = useServerStore()
   const { getActiveCount } = useDownloadStore()
+  const { t } = useI18n()
 
   const activeDownloads = getActiveCount()
   const visibleItems = navItems.filter((item) => !item.adminOnly || canUpload)
@@ -110,7 +112,7 @@ export default function Sidebar({ currentPage, setCurrentPage }: SidebarProps): 
         <div className="flex items-center gap-2">
           <div className={activeServer?.status === 'online' ? 'dot-online' : 'dot-offline'} />
           <span className="text-xs font-medium truncate" style={{ color: activeServer ? '#fff' : '#555' }}>
-            {activeServer?.name || 'Nema servera'}
+            {activeServer?.name || t('noServer')}
           </span>
         </div>
       </div>
@@ -124,7 +126,7 @@ export default function Sidebar({ currentPage, setCurrentPage }: SidebarProps): 
             className={`nav-item w-full text-left ${currentPage === item.id ? 'active' : ''}`}
           >
             <span className="flex-shrink-0">{item.icon}</span>
-            <span className="text-sm font-medium">{item.label}</span>
+            <span className="text-sm font-medium">{t(item.label)}</span>
             {item.id === 'mods' && activeDownloads > 0 && (
               <span className="ml-auto bg-gold text-black text-xs font-bold px-1.5 py-0.5 rounded-full">
                 {activeDownloads}
@@ -157,7 +159,7 @@ export default function Sidebar({ currentPage, setCurrentPage }: SidebarProps): 
           onClick={logout}
           className="w-full text-xs text-gray-600 hover:text-red-400 transition-colors py-1 text-left"
         >
-          Odjava
+          {t('logout')}
         </button>
       </div>
     </div>
