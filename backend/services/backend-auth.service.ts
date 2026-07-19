@@ -3,7 +3,7 @@ import crypto from 'crypto'
 import axios from 'axios'
 import { BACKEND_URL } from '../../src/shared/app-config'
 import { logService } from './log.service'
-import type { DiscordUser, GameServer } from '../../src/shared/types'
+import type { DiscordUser, GameServer, SowingTableRow, SowingTablesState } from '../../src/shared/types'
 
 interface BackendProfile {
   id: string
@@ -183,6 +183,41 @@ export class BackendAuthService {
     if (res.status !== 200) {
       throw new Error(res.data?.error || `Discord obavijest nije poslana (${res.status})`)
     }
+  }
+
+  async fetchSowingTables(token: string): Promise<SowingTablesState> {
+    const base = BACKEND_URL.replace(/\/$/, '')
+    const res = await axios.get(`${base}/admin/sowing-tables`, {
+      headers: { Authorization: `Bearer ${token}` },
+      timeout: 10000
+    })
+    return { farms: res.data?.farms ?? [] }
+  }
+
+  async saveSowingTable(
+    token: string,
+    farmKey: string,
+    rows: SowingTableRow[],
+    yearLabels: string[]
+  ): Promise<SowingTablesState> {
+    const base = BACKEND_URL.replace(/\/$/, '')
+    const res = await axios.put(`${base}/admin/sowing-tables/${encodeURIComponent(farmKey)}`, {
+      rows,
+      yearLabels
+    }, {
+      headers: { Authorization: `Bearer ${token}` },
+      timeout: 15000
+    })
+    return { farms: res.data?.farms ?? [] }
+  }
+
+  async refreshSowingTable(token: string, farmKey: string): Promise<SowingTablesState> {
+    const base = BACKEND_URL.replace(/\/$/, '')
+    const res = await axios.post(`${base}/admin/sowing-tables/${encodeURIComponent(farmKey)}/refresh`, {}, {
+      headers: { Authorization: `Bearer ${token}` },
+      timeout: 15000
+    })
+    return { farms: res.data?.farms ?? [] }
   }
 
   private toSession(profile: BackendProfile, token: string): { user: DiscordUser; hasRole: boolean; canUpload: boolean } {

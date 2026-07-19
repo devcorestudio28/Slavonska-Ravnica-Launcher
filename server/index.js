@@ -26,6 +26,8 @@ const {
 
 const DISCORD_API = 'https://discord.com/api/v10'
 const DISCORD_MOD_CHANNEL_ID = process.env.DISCORD_MOD_CHANNEL_ID || '1487478328007987471'
+const TICKET_BOT_API_URL = String(process.env.TICKET_BOT_API_URL || '').trim().replace(/\/+$/, '')
+const SOWING_TABLE_API_SECRET = process.env.SOWING_TABLE_API_SECRET || process.env.TICKET_BOT_API_SECRET || ''
 const SCOPE = 'identify guilds.members.read'
 const SESSION_TTL = '2d'
 const DEFAULT_PUBLIC_URL = ''
@@ -507,6 +509,71 @@ app.post('/notifications/mod-upload', requireSession, requireAdmin, async (req, 
   } catch (e) {
     console.error('Discord notification failed:', e.message)
     res.status(502).json({ error: 'discord_notification_failed' })
+  }
+})
+
+async function requestSowingBot(pathname, options = {}) {
+  if (!TICKET_BOT_API_URL) throw new Error('sowing_bot_url_missing')
+  if (!SOWING_TABLE_API_SECRET) throw new Error('sowing_bot_secret_missing')
+
+  const response = await fetch(`${TICKET_BOT_API_URL}${pathname}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Sowing-Secret': SOWING_TABLE_API_SECRET,
+      ...(options.headers || {})
+    }
+  })
+  const text = await response.text()
+  let data = null
+  try {
+    data = text ? JSON.parse(text) : null
+  } catch {
+    data = { error: text || 'invalid_response' }
+  }
+  if (!response.ok) {
+    const error = new Error(data?.error || `sowing_bot_error_${response.status}`)
+    error.status = response.status
+    throw error
+  }
+  return data
+}
+
+app.get('/admin/sowing-tables', requireSession, requireAdmin, async (_req, res) => {
+  try {
+    const data = await requestSowingBot('/api/sowing-tables')
+    res.json(data)
+  } catch (e) {
+    console.error('sowing table read failed:', e.message)
+    res.status(502).json({ error: e.message || 'sowing_table_read_failed' })
+  }
+})
+
+app.put('/admin/sowing-tables/:farmKey', requireSession, requireAdmin, async (req, res) => {
+  try {
+    const data = await requestSowingBot(`/api/sowing-tables/${encodeURIComponent(req.params.farmKey)}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        yearLabels: req.body?.yearLabels,
+        rows: req.body?.rows
+      })
+    })
+    res.json(data)
+  } catch (e) {
+    console.error('sowing table save failed:', e.message)
+    res.status(502).json({ error: e.message || 'sowing_table_save_failed' })
+  }
+})
+
+app.post('/admin/sowing-tables/:farmKey/refresh', requireSession, requireAdmin, async (req, res) => {
+  try {
+    const data = await requestSowingBot(`/api/sowing-tables/${encodeURIComponent(req.params.farmKey)}/refresh`, {
+      method: 'POST'
+    })
+    res.json(data)
+  } catch (e) {
+    console.error('sowing table refresh failed:', e.message)
+    res.status(502).json({ error: e.message || 'sowing_table_refresh_failed' })
   }
 })
 

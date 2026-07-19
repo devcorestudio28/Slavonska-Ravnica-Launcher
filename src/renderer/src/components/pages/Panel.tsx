@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useServerStore } from '../../store/server.store'
-import type { FsPanelState } from '../../../../../shared/types'
+import type { FsPanelState, SowingTableFarm, SowingTableRow, SowingTablesState } from '../../../../shared/types'
 import logoUrl from '../../assets/logo.png'
 
 const EMPTY_STATE: FsPanelState = { configured: false, status: 'unknown', mods: [] }
@@ -17,6 +17,14 @@ export default function Panel(): React.ReactElement {
   const [error, setError] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [pendingAction, setPendingAction] = useState<Extract<PanelAction, 'stop' | 'restart'> | null>(null)
+  const [sowingState, setSowingState] = useState<SowingTablesState>({ farms: [] })
+  const [activeFarmKey, setActiveFarmKey] = useState('farm1')
+  const [sowingRows, setSowingRows] = useState<SowingTableRow[]>([])
+  const [sowingLabels, setSowingLabels] = useState<string[]>(['1 GOD', '2 GOD', '3 GOD', '4 GOD'])
+  const [sowingLoading, setSowingLoading] = useState(false)
+  const [sowingWorking, setSowingWorking] = useState<string | null>(null)
+  const [sowingError, setSowingError] = useState<string | null>(null)
+  const [sowingMessage, setSowingMessage] = useState<string | null>(null)
 
   const load = async (): Promise<void> => {
     if (!activeServer) return
@@ -34,11 +42,40 @@ export default function Panel(): React.ReactElement {
     }
   }
 
+  const loadSowingTables = async (): Promise<void> => {
+    setSowingLoading(true)
+    setSowingError(null)
+    try {
+      const response = await window.electron.sowingTablesGet()
+      if (!response.success || !response.data) throw new Error(response.error || 'Tablica sjetve nije dostupna')
+      applySowingState(response.data, activeFarmKey)
+    } catch (err) {
+      setSowingError(err instanceof Error ? err.message : 'Greska ucitavanja tablice sjetve')
+    } finally {
+      setSowingLoading(false)
+    }
+  }
+
+  const applySowingState = (nextState: SowingTablesState, preferredFarmKey?: string): void => {
+    const farms = nextState.farms || []
+    const nextFarm = farms.find((farm) => farm.key === preferredFarmKey) || farms[0]
+    setSowingState({ farms })
+    if (nextFarm) {
+      setActiveFarmKey(nextFarm.key)
+      setSowingRows(nextFarm.rows.map((row) => ({ ...row })))
+      setSowingLabels([...nextFarm.yearLabels])
+    }
+  }
+
   useEffect(() => {
     setState(EMPTY_STATE)
     setSelected(new Set())
     void load()
   }, [activeServer?.id])
+
+  useEffect(() => {
+    void loadSowingTables()
+  }, [])
 
   const runAction = async (action: PanelAction): Promise<void> => {
     if (!activeServer) return
@@ -75,6 +112,47 @@ export default function Panel(): React.ReactElement {
     }
   }
 
+  const saveSowingTable = async (): Promise<void> => {
+    setSowingWorking('save')
+    setSowingError(null)
+    setSowingMessage(null)
+    try {
+      const cleanRows = sowingRows
+        .map((row) => ({
+          field: row.field.trim(),
+          year1: row.year1.trim(),
+          year2: row.year2.trim(),
+          year3: row.year3.trim(),
+          year4: row.year4.trim()
+        }))
+        .filter((row) => row.field)
+      const response = await window.electron.sowingTableSave(activeFarmKey, cleanRows, sowingLabels)
+      if (!response.success || !response.data) throw new Error(response.error || 'Spremanje nije uspjelo')
+      applySowingState(response.data, activeFarmKey)
+      setSowingMessage('Tablica je spremljena i Discord je osvjezen.')
+    } catch (err) {
+      setSowingError(err instanceof Error ? err.message : 'Spremanje nije uspjelo')
+    } finally {
+      setSowingWorking(null)
+    }
+  }
+
+  const refreshSowingTable = async (): Promise<void> => {
+    setSowingWorking('refresh')
+    setSowingError(null)
+    setSowingMessage(null)
+    try {
+      const response = await window.electron.sowingTableRefresh(activeFarmKey)
+      if (!response.success || !response.data) throw new Error(response.error || 'Refresh nije uspio')
+      applySowingState(response.data, activeFarmKey)
+      setSowingMessage('Discord tablica je osvjezena.')
+    } catch (err) {
+      setSowingError(err instanceof Error ? err.message : 'Refresh nije uspio')
+    } finally {
+      setSowingWorking(null)
+    }
+  }
+
   const filteredMods = useMemo(() => {
     const query = search.trim().toLowerCase()
     return query ? state.mods.filter((mod) => mod.name.toLowerCase().includes(query)) : state.mods
@@ -82,6 +160,7 @@ export default function Panel(): React.ReactElement {
 
   const activeMods = filteredMods.filter((mod) => selected.has(mod.id))
   const inactiveMods = filteredMods.filter((mod) => !selected.has(mod.id))
+  const activeSowingFarm = sowingState.farms.find((farm) => farm.key === activeFarmKey) || sowingState.farms[0]
 
   const dirty = state.mods.some((mod) => selected.has(mod.id) !== mod.active)
   const activeCount = selected.size
@@ -207,8 +286,42 @@ export default function Panel(): React.ReactElement {
               />
             </div>
           </div>
+
         </>
       )}
+
+      <SowingTablePanel
+        farms={sowingState.farms}
+        activeFarm={activeSowingFarm}
+        rows={sowingRows}
+        yearLabels={sowingLabels}
+        loading={sowingLoading}
+        working={sowingWorking}
+        error={sowingError}
+        message={sowingMessage}
+        onReload={() => void loadSowingTables()}
+        onRefresh={() => void refreshSowingTable()}
+        onSave={() => void saveSowingTable()}
+        onFarmChange={(farmKey) => {
+          const nextFarm = sowingState.farms.find((farm) => farm.key === farmKey)
+          if (!nextFarm) return
+          setActiveFarmKey(nextFarm.key)
+          setSowingRows(nextFarm.rows.map((row) => ({ ...row })))
+          setSowingLabels([...nextFarm.yearLabels])
+          setSowingError(null)
+          setSowingMessage(null)
+        }}
+        onLabelChange={(index, value) => setSowingLabels((previous) => {
+          const next = [...previous]
+          next[index] = value
+          return next
+        })}
+        onRowChange={(index, key, value) => setSowingRows((previous) => previous.map((row, rowIndex) => (
+          rowIndex === index ? { ...row, [key]: value } : row
+        )))}
+        onAddRow={() => setSowingRows((previous) => [...previous, { field: '', year1: '', year2: '', year3: '', year4: '' }])}
+        onDeleteRow={(index) => setSowingRows((previous) => previous.filter((_, rowIndex) => rowIndex !== index))}
+      />
 
       {pendingAction && (
         <ActionConfirmation
@@ -231,6 +344,154 @@ interface ModSectionProps {
   loading: boolean
   emptyText: string
   onToggle: React.Dispatch<React.SetStateAction<Set<string>>>
+}
+
+interface SowingTablePanelProps {
+  farms: SowingTableFarm[]
+  activeFarm?: SowingTableFarm
+  rows: SowingTableRow[]
+  yearLabels: string[]
+  loading: boolean
+  working: string | null
+  error: string | null
+  message: string | null
+  onReload: () => void
+  onRefresh: () => void
+  onSave: () => void
+  onFarmChange: (farmKey: string) => void
+  onLabelChange: (index: number, value: string) => void
+  onRowChange: (index: number, key: SowingTableColumnKey, value: string) => void
+  onAddRow: () => void
+  onDeleteRow: (index: number) => void
+}
+
+type SowingTableColumnKey = 'field' | 'year1' | 'year2' | 'year3' | 'year4'
+
+function SowingTablePanel({
+  farms,
+  activeFarm,
+  rows,
+  yearLabels,
+  loading,
+  working,
+  error,
+  message,
+  onReload,
+  onRefresh,
+  onSave,
+  onFarmChange,
+  onLabelChange,
+  onRowChange,
+  onAddRow,
+  onDeleteRow
+}: SowingTablePanelProps): React.ReactElement {
+  const disabled = loading || !!working || !activeFarm
+  const columns: { key: SowingTableColumnKey; label: string }[] = [
+    { key: 'field', label: 'Polje' },
+    { key: 'year1', label: yearLabels[0] || '1 GOD' },
+    { key: 'year2', label: yearLabels[1] || '2 GOD' },
+    { key: 'year3', label: yearLabels[2] || '3 GOD' },
+    { key: 'year4', label: yearLabels[3] || '4 GOD' }
+  ]
+
+  return (
+    <div className="panel overflow-hidden mt-6">
+      <div className="p-5 border-b border-dark-400 flex flex-col lg:flex-row lg:items-center gap-4 justify-between">
+        <div>
+          <h2 className="text-white font-semibold">Tablica sjetve</h2>
+          <p className="text-gray-600 text-xs mt-1">
+            {activeFarm?.channelId ? `Discord kanal: ${activeFarm.channelId}` : 'Discord kanal nije postavljen'}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-3">
+          <select
+            value={activeFarm?.key || ''}
+            onChange={(event) => onFarmChange(event.target.value)}
+            disabled={disabled || farms.length === 0}
+            className="input-dark text-sm min-w-36"
+          >
+            {farms.map((farm) => (
+              <option key={farm.key} value={farm.key}>{farm.label}</option>
+            ))}
+          </select>
+          <button onClick={onReload} disabled={disabled} className="btn-ghost disabled:opacity-50">
+            {loading ? 'Ucitavanje...' : 'Ucitaj'}
+          </button>
+          <button onClick={onRefresh} disabled={disabled} className="btn-ghost disabled:opacity-50">
+            {working === 'refresh' ? 'Osvjezavam...' : 'Osvjezi Discord'}
+          </button>
+          <button onClick={onSave} disabled={disabled} className="btn-gold disabled:opacity-50">
+            {working === 'save' ? 'Spremam...' : 'Spremi i osvjezi'}
+          </button>
+        </div>
+      </div>
+
+      {error && <div className="mx-5 mt-4"><Notice color="red">{error}</Notice></div>}
+      {message && <div className="mx-5 mt-4"><Notice color="green">{message}</Notice></div>}
+
+      <div className="p-5 border-b border-dark-400 grid grid-cols-2 md:grid-cols-4 gap-3">
+        {[0, 1, 2, 3].map((index) => (
+          <label key={index} className="block">
+            <span className="text-gray-500 text-xs mb-1 block">Godina {index + 1}</span>
+            <input
+              value={yearLabels[index] || ''}
+              onChange={(event) => onLabelChange(index, event.target.value)}
+              disabled={disabled}
+              className="input-dark w-full text-sm"
+            />
+          </label>
+        ))}
+      </div>
+
+      <div className="overflow-x-auto">
+        <div className="min-w-[900px]">
+          <div className="grid grid-cols-[1.1fr_repeat(4,1fr)_56px] bg-dark-500/40 border-b border-dark-300">
+            {columns.map((column) => (
+              <div key={column.key} className="px-4 py-3 text-gray-400 text-xs font-semibold uppercase">
+                {column.label}
+              </div>
+            ))}
+            <div />
+          </div>
+          <div className="divide-y divide-dark-300">
+            {rows.map((row, index) => (
+              <div key={index} className="grid grid-cols-[1.1fr_repeat(4,1fr)_56px]">
+                {columns.map((column) => (
+                  <div key={column.key} className="p-2">
+                    <input
+                      value={row[column.key]}
+                      onChange={(event) => onRowChange(index, column.key, event.target.value)}
+                      disabled={disabled}
+                      className="input-dark w-full text-sm"
+                    />
+                  </div>
+                ))}
+                <div className="p-2 flex items-center justify-center">
+                  <button
+                    onClick={() => onDeleteRow(index)}
+                    disabled={disabled}
+                    className="w-9 h-9 rounded-lg border border-red-500/30 text-red-300 hover:bg-red-500/10 disabled:opacity-40"
+                    aria-label="Obrisi red"
+                  >
+                    x
+                  </button>
+                </div>
+              </div>
+            ))}
+            {!loading && rows.length === 0 && (
+              <div className="px-5 py-10 text-center text-gray-600 text-sm">Nema redova za ovu farmu.</div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="p-5 border-t border-dark-400">
+        <button onClick={onAddRow} disabled={disabled} className="btn-ghost disabled:opacity-50">
+          Dodaj red
+        </button>
+      </div>
+    </div>
+  )
 }
 
 function ModSection({ title, count, mods, selected, disabled, loading, emptyText, onToggle }: ModSectionProps): React.ReactElement {

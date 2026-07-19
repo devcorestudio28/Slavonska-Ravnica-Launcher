@@ -66,6 +66,27 @@ export interface FsPanelState {
   mods: FsPanelMod[]
 }
 
+export interface SowingTableRow {
+  field: string
+  year1: string
+  year2: string
+  year3: string
+  year4: string
+}
+
+export interface SowingTableFarm {
+  key: string
+  label: string
+  channelId: string
+  messageId: string | null
+  yearLabels: string[]
+  rows: SowingTableRow[]
+}
+
+export interface SowingTablesState {
+  farms: SowingTableFarm[]
+}
+
 // ============================================================
 // MOD TYPES
 // ============================================================
@@ -280,6 +301,9 @@ export interface IElectronAPI {
   panelGetState: (serverId: string) => Promise<IPCResponse<FsPanelState>>
   panelAction: (serverId: string, action: 'start' | 'stop' | 'restart') => Promise<IPCResponse>
   panelSaveMods: (serverId: string, activeModIds: string[]) => Promise<IPCResponse>
+  sowingTablesGet: () => Promise<IPCResponse<SowingTablesState>>
+  sowingTableSave: (farmKey: string, rows: SowingTableRow[], yearLabels: string[]) => Promise<IPCResponse<SowingTablesState>>
+  sowingTableRefresh: (farmKey: string) => Promise<IPCResponse<SowingTablesState>>
 
   // Servers
   getServers: () => Promise<IPCResponse<GameServer[]>>

@@ -31,6 +31,9 @@ const api: IElectronAPI = {
   panelGetState: (serverId) => ipcRenderer.invoke('panel:get-state', serverId),
   panelAction: (serverId, action) => ipcRenderer.invoke('panel:action', serverId, action),
   panelSaveMods: (serverId, activeModIds) => ipcRenderer.invoke('panel:save-mods', serverId, activeModIds),
+  sowingTablesGet: () => ipcRenderer.invoke('sowing-tables:get'),
+  sowingTableSave: (farmKey, rows, yearLabels) => ipcRenderer.invoke('sowing-tables:save', farmKey, rows, yearLabels),
+  sowingTableRefresh: (farmKey) => ipcRenderer.invoke('sowing-tables:refresh', farmKey),
 
   // Mods
   getMods: (serverId) => ipcRenderer.invoke('mods:get-all', serverId),
